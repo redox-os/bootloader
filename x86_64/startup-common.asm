@@ -86,10 +86,6 @@ finished_loading:
     call printrm
     call initialize.pit
 
-    mov si, init_pic_msg
-    call printrm
-    call initialize.pic
-
     mov si, startup_arch_msg
     call printrm
 

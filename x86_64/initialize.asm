@@ -53,26 +53,3 @@ initialize:
     ;or al, 0x40
     ;out 0x71, al
     ret
-
-.pic:    ;sets up IRQs at int 20-2F
-    mov al, 0x11
-    out 0x20, al
-    out 0xA0, al
-    mov al, 0x20    ;IRQ0 vector
-    out 0x21, al
-    mov al, 0x28    ;IRQ8 vector
-    out 0xA1, al
-    mov al, 4
-    out 0x21, al
-    mov al, 2
-    out 0xA1, al
-    mov al, 1
-    out 0x21, al
-    out 0xA1, al
-    xor al, al        ;no IRQ masks
-    out 0x21, al
-    out 0xA1, al
-    mov al, 0x20    ;reset PIC's
-    out 0xA0, al
-    out 0x20, al
-    ret
