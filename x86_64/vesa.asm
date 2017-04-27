@@ -68,6 +68,8 @@ vesa:
     cmp cx, [.miny]
     jb .searchmodes
 .testgood:
+    mov al, 13
+    call charrm
     mov cx, [.currentmode]
     mov [.goodmode], cx
     push esi
@@ -120,7 +122,7 @@ vesa:
 .minx dw 640
 .miny dw 480
 
-.modeok db ": Is this OK? (s)ave/(y)es/(n)o",10,13,0
+.modeok db ": Is this OK? (s)ave/(y)es/(n)o    ",8,8,8,8,0
 
 .goodmode dw 0
 .currentmode dw 0

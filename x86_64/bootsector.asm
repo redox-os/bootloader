@@ -40,6 +40,7 @@ boot: ; dl comes with disk
     xor dx, dx
     call load
 
+    call print_line
     mov si, finished
     call print
     call print_line
@@ -125,6 +126,9 @@ load:
       ret
 
 print_dapack:
+    mov al, 13
+    call print_char
+
     mov bx, [DAPACK.addr + 2]
     call print_num
 
@@ -149,9 +153,11 @@ print_dapack:
     mov bx, [DAPACK.buf]
     call print_num
 
-    jmp print_line
+    ret
 
 error:
+    call print_line
+
     mov bh, 0
     mov bl, ah
     call print_num

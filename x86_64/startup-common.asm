@@ -70,6 +70,8 @@ kernel_base equ 0x100000
     mov ecx, (kernel_file.length_sectors % buffer_size_bytes) / 4
     a32 rep movsd
 finished_loading:
+    call print_line
+
     call memory_map
 
     call vesa
