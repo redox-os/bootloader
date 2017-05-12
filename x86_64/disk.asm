@@ -12,10 +12,14 @@ align 512, db 0
 startup_end:
 
 kernel_file:
-  incbin "build/kernel"
+  %defstr KERNEL_STR %[KERNEL]
+  incbin KERNEL_STR
   align 512, db 0
 .end:
 .length equ kernel_file.end - kernel_file
 .length_sectors equ .length / 512
 
-incbin "build/filesystem.bin"
+%ifdef FILESYSTEM
+    %defstr FILESYSTEM_STR %[FILESYSTEM]
+    incbin FILESYSTEM_STR
+%endif
