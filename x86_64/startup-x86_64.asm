@@ -122,9 +122,21 @@ long_mode:
     mov gs, rax
     mov ss, rax
 
-    mov rsp, 0xFFFFFF000009F000
+    ; kernel_base
+    mov rdi, kernel_base
+    ; kernel_size
+    mov rsi, kernel_file.length
+    ; stack_base
+    mov rdx, 0xFFFFFF0000080000
+    ; stack_size
+    mov rcx, 0x1F000
 
-    ;rust init
+    ; set stack pointer
+    mov rsp, rdx
+    add rsp, rcx
+    sub rsp, 256
+
+    ; entry point
     mov rax, [kernel_base + 0x18]
     jmp rax
 
