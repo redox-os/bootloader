@@ -66,7 +66,7 @@ load:
     mov cx, 127
     call load
     popa
-    add ax, 127
+    add eax, 127
     add dx, 127 * 512 / 16
     sub cx, 127
 

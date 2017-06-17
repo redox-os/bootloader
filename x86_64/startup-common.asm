@@ -1,76 +1,16 @@
 SECTION .text
 USE16
 
+kernel_base dq 0x100000
+kernel_size dq 0
+
 startup:
     ; enable A20-Line via IO-Port 92, might not work on all motherboards
     in al, 0x92
     or al, 2
     out 0x92, al
 
-; loading kernel to 1MiB
-; move part of kernel to startup_end via bootsector#load and then copy it up
-; repeat until all of the kernel is loaded
-
-; buffersize in multiple of sectors (512 Bytes)
-; min 1
-; max (0x70000 - startup_end) / 512
-buffer_size_sectors equ 127
-; buffer size in Bytes
-buffer_size_bytes equ buffer_size_sectors * 512
-
-kernel_base equ 0x100000
-
-    ; how often do we need to call load and move memory
-    mov ecx, kernel_file.length_sectors / buffer_size_sectors
-
-    mov eax, (kernel_file - boot) / 512
-    mov edi, kernel_base
-    cld
-.lp:
-    ; saving counter
-    push cx
-
-        ; populating buffer
-        mov cx, buffer_size_sectors
-        mov bx, kernel_file
-        mov dx, 0x0
-
-        push edi
-        push eax
-        call load
-
-        ; moving buffer
-        call unreal
-        pop eax
-        pop edi
-
-        mov esi, kernel_file
-        mov ecx, buffer_size_bytes / 4
-        a32 rep movsd
-
-        ; preparing next iteration
-        add eax, buffer_size_sectors
-
-    pop cx
-    loop .lp
-
-    ; load the part of the kernel that does not fill the buffer completely
-    mov cx, kernel_file.length_sectors % buffer_size_sectors
-    test cx, cx
-    jz finished_loading ; if cx = 0 => skip
-
-    mov bx, kernel_file
-    mov dx, 0x0
-    call load
-
-    ; moving remnants of kernel
-    call unreal
-
-    mov esi, kernel_file
-    mov ecx, (kernel_file.length_sectors % buffer_size_bytes) / 4
-    a32 rep movsd
-finished_loading:
-    call print_line
+    call redoxfs
 
     call memory_map
 
@@ -93,6 +33,79 @@ finished_loading:
 
     jmp startup_arch
 
+# load a disk extent into high memory
+# eax - sector address
+# ecx - sector count
+# edi - destination
+load_extent:
+    ; loading kernel to 1MiB
+    ; move part of kernel to startup_end via bootsector#load and then copy it up
+    ; repeat until all of the kernel is loaded
+    buffer_size_sectors equ 127
+
+.lp:
+    cmp ecx, buffer_size_sectors
+    jb .break
+
+    ; saving counter
+    push eax
+    push ecx
+
+    push edi
+
+    ; populating buffer
+    mov ecx, buffer_size_sectors
+    mov bx, startup_end
+    mov dx, 0x0
+
+    ; load sectors
+    call load
+
+    ; set up unreal mode
+    call unreal
+
+    pop edi
+
+    ; move data
+    mov esi, startup_end
+    mov ecx, buffer_size_sectors * 512 / 4
+    cld
+    a32 rep movsd
+
+    pop ecx
+    pop eax
+
+    add eax, buffer_size_sectors
+    sub ecx, buffer_size_sectors
+    jmp .lp
+
+.break:
+    ; load the part of the kernel that does not fill the buffer completely
+    test ecx, ecx
+    jz .finish ; if cx = 0 => skip
+
+    push ecx
+    push edi
+
+    mov bx, startup_end
+    mov dx, 0x0
+    call load
+
+    ; moving remnants of kernel
+    call unreal
+
+    pop edi
+    pop ecx
+
+    mov esi, startup_end
+    shl ecx, 7 ; * 512 / 4
+    cld
+    a32 rep movsd
+
+.finish:
+    call print_line
+    ret
+
 %include "config.asm"
 %include "descriptor_flags.inc"
 %include "gdt_entry.inc"
@@ -100,6 +113,7 @@ finished_loading:
 %include "memory_map.asm"
 %include "vesa.asm"
 %include "initialize.asm"
+%include "redoxfs.asm"
 
 init_fpu_msg: db "Init FPU",13,10,0
 init_sse_msg: db "Init SSE",13,10,0

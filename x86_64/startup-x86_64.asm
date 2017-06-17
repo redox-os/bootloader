@@ -123,9 +123,9 @@ long_mode:
     mov ss, rax
 
     ; kernel_base
-    mov rdi, kernel_base
+    mov rdi, [kernel_base]
     ; kernel_size
-    mov rsi, kernel_file.length
+    mov rsi, [kernel_size]
     ; stack_base
     mov rdx, 0xFFFFFF0000080000
     ; stack_size
@@ -137,7 +137,7 @@ long_mode:
     sub rsp, 256
 
     ; entry point
-    mov rax, [kernel_base + 0x18]
+    mov rax, [rdi + 0x18]
     jmp rax
 
 long_mode_ap:

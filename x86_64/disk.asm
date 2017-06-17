@@ -11,15 +11,7 @@ startup_start:
 align 512, db 0
 startup_end:
 
-kernel_file:
-  %defstr KERNEL_STR %[KERNEL]
-  incbin KERNEL_STR
-  align 512, db 0
-.end:
-.length equ kernel_file.end - kernel_file
-.length_sectors equ .length / 512
-
-%ifdef FILESYSTEM
+filesystem:
     %defstr FILESYSTEM_STR %[FILESYSTEM]
     incbin FILESYSTEM_STR
-%endif
+    align 512, db 0
