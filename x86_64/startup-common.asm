@@ -10,8 +10,25 @@ startup:
     or al, 2
     out 0x92, al
 
-    call redoxfs
+    %ifdef KERNEL
+        mov edi, [kernel_base]
+        mov ecx, (kernel_file.end - kernel_file)
+        mov [kernel_size], ecx
 
+        mov eax, (kernel_file - boot)/512
+        add ecx, 511
+        shr ecx, 9
+        call load_extent
+
+        jmp .loaded_kernel
+    %endif
+
+    %ifdef FILESYSTEM
+        call redoxfs
+        jmp .loaded_kernel
+    %endif
+
+.loaded_kernel:
     call memory_map
 
     call vesa
@@ -113,7 +130,9 @@ load_extent:
 %include "memory_map.asm"
 %include "vesa.asm"
 %include "initialize.asm"
-%include "redoxfs.asm"
+%ifdef FILESYSTEM
+    %include "redoxfs.asm"
+%endif
 
 init_fpu_msg: db "Init FPU",13,10,0
 init_sse_msg: db "Init SSE",13,10,0

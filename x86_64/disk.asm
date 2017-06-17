@@ -11,7 +11,18 @@ startup_start:
 align 512, db 0
 startup_end:
 
-filesystem:
-    %defstr FILESYSTEM_STR %[FILESYSTEM]
-    incbin FILESYSTEM_STR
+%ifdef KERNEL
+    kernel_file:
+      %defstr KERNEL_STR %[KERNEL]
+      incbin KERNEL_STR
+    .end:
     align 512, db 0
+%endif
+
+%ifdef FILESYSTEM
+    filesystem:
+        %defstr FILESYSTEM_STR %[FILESYSTEM]
+        incbin FILESYSTEM_STR
+    .end:
+    align 512, db 0
+%endif
