@@ -7,7 +7,11 @@ struc Node
     .mode: resw 1
     .uid: resd 1
     .gid: resd 1
-    .name: resb 246
+    .ctime: resq 1
+    .ctime_nsec: resd 1
+    .mtime: resq 1
+    .mtime_nsec: resd 1
+    .name: resb 222
     .parent: resq 1
     .next: resq 1
     .extents: resb Extent_size * 15
@@ -119,7 +123,7 @@ redoxfs.open:
         ret
 
     .signature: db "RedoxFS",0
-    .version: dq 1
+    .version: dq 2
 
 
 redoxfs.root:
