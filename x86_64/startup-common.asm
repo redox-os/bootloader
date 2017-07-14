@@ -41,10 +41,6 @@ startup:
     call printrm
     call initialize.sse
 
-    mov si, init_pit_msg
-    call printrm
-    call initialize.pit
-
     mov si, startup_arch_msg
     call printrm
 
