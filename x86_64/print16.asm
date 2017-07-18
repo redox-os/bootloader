@@ -3,8 +3,6 @@ USE16
 ; provide function for printing in x86 real mode
 
 ; print a string and a newline
-; IN
-;   si: points at zero-terminated String
 ; CLOBBER
 ;   ax
 print_line:
