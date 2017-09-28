@@ -19,14 +19,11 @@ startup:
         add ecx, 511
         shr ecx, 9
         call load_extent
-
-        jmp .loaded_kernel
-    %endif
-
-    %ifdef FILESYSTEM
+    %else
         call redoxfs
-        jmp .loaded_kernel
     %endif
+
+    jmp .loaded_kernel
 
 .loaded_kernel:
     call memory_map
@@ -126,7 +123,7 @@ load_extent:
 %include "memory_map.asm"
 %include "vesa.asm"
 %include "initialize.asm"
-%ifdef FILESYSTEM
+%ifndef KERNEL
     %include "redoxfs.asm"
 %endif
 

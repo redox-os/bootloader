@@ -17,12 +17,14 @@ startup_end:
       incbin KERNEL_STR
     .end:
     align 512, db 0
-%endif
-
-%ifdef FILESYSTEM
-    filesystem:
-        %defstr FILESYSTEM_STR %[FILESYSTEM]
-        incbin FILESYSTEM_STR
-    .end:
-    align 512, db 0
+%else
+    %ifdef FILESYSTEM
+        filesystem:
+            %defstr FILESYSTEM_STR %[FILESYSTEM]
+            incbin FILESYSTEM_STR
+        .end:
+        align 512, db 0
+    %else
+        filesystem:
+    %endif
 %endif
