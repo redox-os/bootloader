@@ -122,23 +122,24 @@ long_mode:
     mov gs, rax
     mov ss, rax
 
-    ; kernel_base
-    mov rdi, [kernel_base]
-    ; kernel_size
-    mov rsi, [kernel_size]
     ; stack_base
     mov rdx, 0xFFFFFF0000080000
+    mov [args.stack_base], rdx
     ; stack_size
     mov rcx, 0x1F000
+    mov [args.stack_size], rcx
 
     ; set stack pointer
     mov rsp, rdx
     add rsp, rcx
     sub rsp, 256
 
+    ; set args
+    mov rdi, args
+
     ; entry point
-    mov rax, [rdi + 0x18]
-    jmp rax
+    mov rax, [args.kernel_base]
+    jmp [rax + 0x18]
 
 long_mode_ap:
     mov rax, gdt.kernel_data
@@ -148,12 +149,10 @@ long_mode_ap:
     mov gs, rax
     mov ss, rax
 
-    mov rdi, [trampoline.cpu_id]
-    mov rsi, [trampoline.page_table]
-    mov rdx, [trampoline.stack_start]
     mov rcx, [trampoline.stack_end]
-
     lea rsp, [rcx - 256]
+
+    mov rdi, trampoline.cpu_id
 
     mov rax, [trampoline.code]
     mov qword [trampoline.ready], 1

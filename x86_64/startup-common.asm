@@ -1,8 +1,11 @@
 SECTION .text
 USE16
 
-kernel_base dq 0x100000
-kernel_size dq 0
+args:
+    .kernel_base dq 0x100000
+    .kernel_size dq 0
+    .stack_base dq 0
+    .stack_size dq 0
 
 startup:
     ; enable A20-Line via IO-Port 92, might not work on all motherboards
@@ -11,9 +14,9 @@ startup:
     out 0x92, al
 
     %ifdef KERNEL
-        mov edi, [kernel_base]
+        mov edi, [args.kernel_base]
         mov ecx, (kernel_file.end - kernel_file)
-        mov [kernel_size], ecx
+        mov [args.kernel_size], ecx
 
         mov eax, (kernel_file - boot)/512
         add ecx, 511
@@ -31,15 +34,15 @@ startup:
     call vesa
 
     mov si, init_fpu_msg
-    call printrm
+    call print
     call initialize.fpu
 
     mov si, init_sse_msg
-    call printrm
+    call print
     call initialize.sse
 
     mov si, startup_arch_msg
-    call printrm
+    call print
 
     jmp startup_arch
 

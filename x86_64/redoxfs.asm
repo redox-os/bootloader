@@ -92,7 +92,31 @@ redoxfs.open:
         jl .ver
 
         lea si, [redoxfs.header + Header.signature]
-        call printrm
+        call print
+        mov al, ' '
+        call print_char
+
+        xor si, si
+    .uuid:
+        cmp si, 4
+        je .dash
+        cmp si, 6
+        je .dash
+        cmp si, 8
+        je .dash
+        cmp si, 10
+        je .dash
+        jmp .no_dash
+    .dash:
+        mov al, '-'
+        call print_char
+    .no_dash:
+        mov bx, [redoxfs.header + Header.uuid + si]
+        rol bx, 8
+        call print_hex
+        add si, 2
+        cmp si, 16
+        jb .uuid
         call print_line
 
         xor ax, ax
@@ -104,20 +128,20 @@ redoxfs.open:
 
     .sig_err:
         mov si, .err_msg
-        call printrm
+        call print
 
         mov si, .sig_err_msg
-        call printrm
+        call print
 
         mov ax, 1
         ret
 
     .ver_err:
         mov si, .err_msg
-        call printrm
+        call print
 
         mov si, .ver_err_msg
-        call printrm
+        call print
 
         mov ax, 1
         ret
@@ -128,7 +152,7 @@ redoxfs.open:
 
 redoxfs.root:
         lea si, [redoxfs.dir + Node.name]
-        call printrm
+        call print
         call print_line
 
     .lp:
@@ -197,10 +221,10 @@ redoxfs.root:
 
     .no_kernel:
         mov si, .no_kernel_msg
-        call printrm
+        call print
 
         mov si, .kernel_name
-        call printrm
+        call print
 
         call print_line
 
@@ -212,10 +236,10 @@ redoxfs.root:
 
 redoxfs.kernel:
         lea si, [redoxfs.file + Node.name]
-        call printrm
+        call print
         call print_line
 
-        mov edi, [kernel_base]
+        mov edi, [args.kernel_base]
     .lp:
         mov bx, 0
     .ext:
@@ -264,8 +288,8 @@ redoxfs.kernel:
         jmp .lp
 
     .done:
-        sub edi, [kernel_base]
-        mov [kernel_size], edi
+        sub edi, [args.kernel_base]
+        mov [args.kernel_size], edi
 
         xor eax, eax
         ret

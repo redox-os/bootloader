@@ -69,26 +69,26 @@ vesa:
     jb .searchmodes
 .testgood:
     mov al, 13
-    call charrm
+    call print_char
     mov cx, [.currentmode]
     mov [.goodmode], cx
     push esi
-    ; call decshowrm
+    ; call print_dec
     ; mov al, ':'
-    ; call charrm
+    ; call print_char
     mov cx, [VBEModeInfo.xresolution]
-    call decshowrm
+    call print_dec
     mov al, 'x'
-    call charrm
+    call print_char
     mov cx, [VBEModeInfo.yresolution]
-    call decshowrm
+    call print_dec
     mov al, '@'
-    call charrm
+    call print_char
     xor ch, ch
     mov cl, [VBEModeInfo.bitsperpixel]
-    call decshowrm
+    call print_dec
     mov si, .modeok
-    call printrm
+    call print
     xor ax, ax
     int 0x16
     pop esi
@@ -128,7 +128,12 @@ vesa:
 .currentmode dw 0
 ;useful functions
 
-decshowrm:
+; print a number in decimal
+; IN
+;   cx: the number
+; CLOBBER
+;   al, cx, si
+print_dec:
     mov si, .number
 .clear:
     mov al, "0"
@@ -137,7 +142,7 @@ decshowrm:
     cmp si, .numberend
     jb .clear
     dec si
-    call convertrm
+    call convert_dec
     mov si, .number
 .lp:
     lodsb
@@ -147,13 +152,13 @@ decshowrm:
     jbe .lp
 .end:
     dec si
-    call printrm
+    call print
     ret
 
 .number times 7 db 0
 .numberend db 0
 
-convertrm:
+convert_dec:
     dec si
     mov bx, si        ;place to convert into must be in si, number to convert must be in cx
 .cnvrt:
@@ -190,20 +195,4 @@ convertrm:
     inc byte [si]
     jmp .cnvrt
 .return:
-    ret
-
-printrm:
-    mov al, [si]
-    test al, al
-    jz .return
-    call charrm
-    inc si
-    jmp printrm
-.return:
-    ret
-
-charrm:             ;char must be in al
-    mov bx, 7
-    mov ah, 0xE
-    int 10h
     ret

@@ -15,8 +15,9 @@ print_line:
 ; IN
 ;   si: points at zero-terminated String
 ; CLOBBER
-;   ax
+;   si, ax
 print:
+    pushf
     cld
 .loop:
     lodsb
@@ -25,24 +26,26 @@ print:
     call print_char
     jmp .loop
 .done:
+    popf
     ret
 
 ; print a character
 ; IN
 ;   al: character to print
-; CLOBBER
-;   ah
 print_char:
+    pusha
+    mov bx, 7
     mov ah, 0x0e
     int 0x10
+    popa
     ret
 
 ; print a number in hex
 ; IN
 ;   bx: the number
 ; CLOBBER
-;   cx, ax
-print_num:
+;   al, cx
+print_hex:
     mov cx, 4
 .lp:
     mov al, bh

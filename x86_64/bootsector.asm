@@ -27,11 +27,11 @@ boot: ; dl comes with disk
     call print_line
 
     mov bx, (startup_start - boot) / 512
-    call print_num
+    call print_hex
     call print_line
 
     mov bx, startup_start
-    call print_num
+    call print_hex
     call print_line
 
     mov eax, (startup_start - boot) / 512
@@ -130,28 +130,28 @@ print_dapack:
     call print_char
 
     mov bx, [DAPACK.addr + 2]
-    call print_num
+    call print_hex
 
     mov bx, [DAPACK.addr]
-    call print_num
+    call print_hex
 
     mov al, '#'
     call print_char
 
     mov bx, [DAPACK.count]
-    call print_num
+    call print_hex
 
     mov al, ' '
     call print_char
 
     mov bx, [DAPACK.seg]
-    call print_num
+    call print_hex
 
     mov al, ':'
     call print_char
 
     mov bx, [DAPACK.buf]
-    call print_num
+    call print_hex
 
     ret
 
@@ -160,7 +160,7 @@ error:
 
     mov bh, 0
     mov bl, ah
-    call print_num
+    call print_hex
 
     mov al, ' '
     call print_char
@@ -173,7 +173,7 @@ error:
     hlt
     jmp .halt
 
-%include "print16.asm"
+%include "print.asm"
 
 name: db "Redox Loader - Stage One",0
 errored: db "Could not read disk",0
