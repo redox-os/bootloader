@@ -67,6 +67,13 @@ redoxfs:
     .file:
         times 512 db 0
 
+    .env:
+        db "REDOXFS_UUID="
+    .env.uuid:
+        db "00000000-0000-0000-0000-000000000000"
+    .env.end:
+        db 0
+
 redoxfs.open:
         mov eax, 0
         mov bx, redoxfs.header
@@ -96,27 +103,49 @@ redoxfs.open:
         mov al, ' '
         call print_char
 
+        mov di, redoxfs.env.uuid
         xor si, si
     .uuid:
         cmp si, 4
-        je .dash
+        je .uuid.dash
         cmp si, 6
-        je .dash
+        je .uuid.dash
         cmp si, 8
-        je .dash
+        je .uuid.dash
         cmp si, 10
-        je .dash
-        jmp .no_dash
-    .dash:
+        je .uuid.dash
+        jmp .uuid.no_dash
+    .uuid.dash:
         mov al, '-'
-        call print_char
-    .no_dash:
+        mov [di], al
+        inc di
+    .uuid.no_dash:
         mov bx, [redoxfs.header + Header.uuid + si]
         rol bx, 8
-        call print_hex
+
+        mov cx, 4
+    .uuid.char:
+        mov al, bh
+        shr al, 4
+
+        cmp al, 0xA
+        jb .uuid.below_0xA
+
+        add al, 'a' - 0xA - '0'
+    .uuid.below_0xA:
+        add al, '0'
+
+        mov [di], al
+        inc di
+
+        shl bx, 4
+        loop .uuid.char
+
         add si, 2
         cmp si, 16
         jb .uuid
+
+        call print
         call print_line
 
         xor ax, ax

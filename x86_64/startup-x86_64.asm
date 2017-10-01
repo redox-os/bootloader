@@ -123,23 +123,48 @@ long_mode:
     mov ss, rax
 
     ; stack_base
-    mov rdx, 0xFFFFFF0000080000
-    mov [args.stack_base], rdx
+    mov rsi, 0xFFFFFF0000080000
+    mov [args.stack_base], rsi
     ; stack_size
     mov rcx, 0x1F000
     mov [args.stack_size], rcx
 
     ; set stack pointer
-    mov rsp, rdx
+    mov rsp, rsi
     add rsp, rcx
-    sub rsp, 256
+
+    ; copy env to stack
+%ifdef KERNEL
+    mov rsi, 0
+    mov rcx, 0
+%else
+    mov rsi, redoxfs.env
+    mov rcx, redoxfs.env.end - redoxfs.env
+%endif
+    mov [args.env_size], rcx
+    cmp rcx, 0
+    je .no_env
+.copy_env:
+    mov al, [rsi + rcx]
+    dec rsp
+    mov [rsp], al
+    loop .copy_env
+.no_env
+    mov [args.env_base], rsp
+
+    ; align stack
+    and rsp, 0xFFFFFFFFFFFFFFF0
 
     ; set args
     mov rdi, args
 
     ; entry point
     mov rax, [args.kernel_base]
-    jmp [rax + 0x18]
+    call [rax + 0x18]
+.halt:
+    cli
+    hlt
+    jmp .halt
 
 long_mode_ap:
     mov rax, gdt.kernel_data
