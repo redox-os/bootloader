@@ -142,14 +142,15 @@ long_mode:
     mov rcx, redoxfs.env.end - redoxfs.env
 %endif
     mov [args.env_size], rcx
+.copy_env:
     cmp rcx, 0
     je .no_env
-.copy_env:
+    dec rcx
     mov al, [rsi + rcx]
     dec rsp
     mov [rsp], al
-    loop .copy_env
-.no_env
+    jmp .copy_env
+.no_env:
     mov [args.env_base], rsp
 
     ; align stack
