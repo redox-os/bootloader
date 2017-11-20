@@ -1,3 +1,6 @@
+%define BLOCK_SHIFT 12
+%define BLOCK_SIZE (1 << BLOCK_SHIFT)
+
 struc Extent
     .block: resq 1,
     .length: resq 1
@@ -14,24 +17,24 @@ struc Node
     .name: resb 222
     .parent: resq 1
     .next: resq 1
-    .extents: resb Extent_size * 15
+    .extents: resb (BLOCK_SIZE - 272)
 endstruc
 
 struc Header
     ; Signature, should be b"RedoxFS\0"
     .signature: resb 8
-    ; Version, should be 1
+    ; Version, should be 2
     .version: resq 1,
     ; Disk ID, a 128-bit unique identifier
     .uuid: resb 16,
-    ; Disk size, in 512-byte sectors
+    ; Disk size, in BLOCK_SIZE-byte sectors
     .size: resq 1,
     ; Block of root node
     .root: resq 1,
     ; Block of free space node
     .free: resq 1
     ; Padding
-    .padding: resb 456
+    .padding: resb (BLOCK_SIZE - 56)
 endstruc
 
 redoxfs:
@@ -49,23 +52,24 @@ redoxfs:
 
     ; node in eax, buffer in bx
     .node:
-        add eax, (filesystem - boot) / 512
-        mov cx, 1
+        shl eax, (BLOCK_SHIFT - 9)
+        add eax, (filesystem - boot)/512
+        mov cx, (BLOCK_SIZE/512)
         mov dx, 0
         call load
         call print_line
         ret
 
-        align 512, db 0
+        align BLOCK_SIZE, db 0
 
     .header:
-        times 512 db 0
+        times BLOCK_SIZE db 0
 
     .dir:
-        times 512 db 0
+        times BLOCK_SIZE db 0
 
     .file:
-        times 512 db 0
+        times BLOCK_SIZE db 0
 
     .env:
         db "REDOXFS_UUID="
@@ -145,6 +149,7 @@ redoxfs.open:
         cmp si, 16
         jb .uuid
 
+        mov si, redoxfs.env.uuid
         call print
         call print_line
 
@@ -176,7 +181,7 @@ redoxfs.open:
         ret
 
     .signature: db "RedoxFS",0
-    .version: dq 2
+    .version: dq 3
 
 
 redoxfs.root:
@@ -195,8 +200,9 @@ redoxfs.root:
         test ecx, ecx
         jz .next
 
-        add ecx, 511
-        shr ecx, 9
+        add ecx, BLOCK_SIZE
+        dec ecx
+        shr ecx, BLOCK_SHIFT
 
         push bx
 
@@ -236,7 +242,7 @@ redoxfs.root:
         pop bx
 
         add bx, Extent_size
-        cmp bx, Extent_size * 16
+        cmp bx, (BLOCK_SIZE - 272)
         jb .ext
 
     .next:
@@ -286,8 +292,11 @@ redoxfs.kernel:
         push ecx
         push edi
 
+
+        shl eax, (BLOCK_SHIFT - 9)
         add eax, (filesystem - boot)/512
-        add ecx, 511
+        add ecx, BLOCK_SIZE
+        dec ecx
         shr ecx, 9
         call load_extent
 

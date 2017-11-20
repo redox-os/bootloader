@@ -26,6 +26,8 @@ startup:
         call load_extent
     %else
         call redoxfs
+        test eax, eax
+        jnz error
     %endif
 
     jmp .loaded_kernel

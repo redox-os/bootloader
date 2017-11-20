@@ -1,3 +1,5 @@
+sectalign off
+
 %include "bootsector.asm"
 
 startup_start:
@@ -18,12 +20,13 @@ startup_end:
     .end:
     align 512, db 0
 %else
+    align BLOCK_SIZE, db 0
     %ifdef FILESYSTEM
         filesystem:
             %defstr FILESYSTEM_STR %[FILESYSTEM]
             incbin FILESYSTEM_STR
         .end:
-        align 512, db 0
+        align BLOCK_SIZE, db 0
     %else
         filesystem:
     %endif
