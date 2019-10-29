@@ -72,11 +72,15 @@ redoxfs:
         times BLOCK_SIZE db 0
 
     .env:
+        db "REDOXFS_BLOCK="
+    .env.block:
+        db "0000000000000000"
+    .env.block_end:
+        db `\n`
         db "REDOXFS_UUID="
     .env.uuid:
         db "00000000-0000-0000-0000-000000000000"
     .env.end:
-        db 0
 
 redoxfs.open:
         mov eax, 0
@@ -106,6 +110,22 @@ redoxfs.open:
         call print
         mov al, ' '
         call print_char
+
+        mov ebx, (filesystem - boot)/BLOCK_SIZE
+        mov di, redoxfs.env.block_end - 1
+    .block:
+        mov al, bl
+        and al, 0x0F
+        cmp al, 0x0A
+        jb .block.below_0xA
+        add al, 'A' - 0xA - '0'
+    .block.below_0xA:
+        add al, '0'
+        mov [di], al
+        dec di
+        shr ebx, 4
+        test ebx, ebx
+        jnz .block
 
         mov di, redoxfs.env.uuid
         xor si, si
