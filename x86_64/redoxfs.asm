@@ -37,7 +37,12 @@ struc Header
     .padding: resb (BLOCK_SIZE - 56)
 endstruc
 
+; IN
+; eax - the first sector of the filesystem
+; edx - the amount of sectors in the filesystem
 redoxfs:
+        mov [.first_sector], eax
+        mov [.sector_count], ebx
         call redoxfs.open
         test eax, eax
         jz .good_header
@@ -53,7 +58,7 @@ redoxfs:
     ; node in eax, buffer in bx
     .node:
         shl eax, (BLOCK_SHIFT - 9)
-        add eax, (filesystem - boot)/512
+        add eax, [redoxfs.first_sector]
         mov cx, (BLOCK_SIZE/512)
         mov dx, 0
         call load
@@ -70,6 +75,9 @@ redoxfs:
 
     .file:
         times BLOCK_SIZE db 0
+
+    .first_sector: dd 0
+    .sector_count: dd 0
 
     .env:
         db "REDOXFS_BLOCK="
@@ -111,7 +119,15 @@ redoxfs.open:
         mov al, ' '
         call print_char
 
-        mov ebx, (filesystem - boot)/BLOCK_SIZE
+        push eax
+        push edx
+        xor edx, edx
+        mov eax, [redoxfs.first_sector]
+        mov ebx, (BLOCK_SIZE / 512)
+        div ebx ; EDX:EAX = EDX:EAX / EBX
+        mov ebx, eax
+        pop edx
+        pop eax
         mov di, redoxfs.env.block_end - 1
     .block:
         mov al, bl
@@ -314,7 +330,7 @@ redoxfs.kernel:
 
 
         shl eax, (BLOCK_SHIFT - 9)
-        add eax, (filesystem - boot)/512
+        add eax, [redoxfs.first_sector]
         add ecx, BLOCK_SIZE
         dec ecx
         shr ecx, 9

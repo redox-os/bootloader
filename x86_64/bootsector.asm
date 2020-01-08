@@ -150,6 +150,7 @@ DAPACK:
 .seg:   dw 0 ; in memory page zero
 .addr:  dq 0 ; put the lba to read in this spot
 
-times 510-($-$$) db 0
+times 446-($-$$) db 0
+partitions: times 4 * 16 db 0
 db 0x55
 db 0xaa

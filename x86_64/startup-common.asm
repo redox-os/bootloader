@@ -25,6 +25,14 @@ startup:
         shr ecx, 9
         call load_extent
     %else
+
+        %ifdef FILESYSTEM
+            mov eax, (filesystem - boot) / 512
+            mov ebx, (filesystem.end - filesystem) / 512
+        %else
+            call find_redoxfs_partition
+        %endif
+
         call redoxfs
         test eax, eax
         jnz error
@@ -50,10 +58,10 @@ startup:
 
     jmp startup_arch
 
-# load a disk extent into high memory
-# eax - sector address
-# ecx - sector count
-# edi - destination
+; load a disk extent into high memory
+; eax - sector address
+; ecx - sector count
+; edi - destination
 load_extent:
     ; loading kernel to 1MiB
     ; move part of kernel to startup_end via bootsector#load and then copy it up
@@ -132,6 +140,9 @@ load_extent:
 %include "initialize.asm"
 %ifndef KERNEL
     %include "redoxfs.asm"
+    %ifndef FILESYSTEM
+        %include "partitions.asm"
+    %endif
 %endif
 
 init_fpu_msg: db "Init FPU",13,10,0
