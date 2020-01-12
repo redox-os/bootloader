@@ -22,12 +22,10 @@ startup_end:
 %else
     align BLOCK_SIZE, db 0
     %ifdef FILESYSTEM
-        filesystem:
-            %defstr FILESYSTEM_STR %[FILESYSTEM]
-            incbin FILESYSTEM_STR
-        .end:
-        align BLOCK_SIZE, db 0
-    %else
-        filesystem:
+     filesystem:
+         %defstr FILESYSTEM_STR %[FILESYSTEM]
+         incbin FILESYSTEM_STR
+     align BLOCK_SIZE, db 0
+     .end:
     %endif
 %endif

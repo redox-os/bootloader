@@ -86,45 +86,6 @@ load:
     jc error
     ret
 
-  ; store some sectors to disk from a buffer in memory
-  ; buffer has to be below 1MiB
-  ; IN
-  ;   ax: start sector
-  ;   bx: offset of buffer
-  ;   cx: number of sectors (512 Bytes each)
-  ;   dx: segment of buffer
-  ; CLOBBER
-  ;   ax, bx, cx, dx, si
-  ; TODO rewrite to (eventually) move larger parts at once
-  ; if that is done increase buffer_size_sectors in startup-common to that (max 0x80000 - startup_end)
-  store:
-      cmp cx, 127
-      jbe .good_size
-
-      pusha
-      mov cx, 127
-      call store
-      popa
-      add ax, 127
-      add dx, 127 * 512 / 16
-      sub cx, 127
-
-      jmp store
-  .good_size:
-      mov [DAPACK.addr], eax
-      mov [DAPACK.buf], bx
-      mov [DAPACK.count], cx
-      mov [DAPACK.seg], dx
-
-      call print_dapack
-
-      mov dl, [disk]
-      mov si, DAPACK
-      mov ah, 0x43
-      int 0x13
-      jc error
-      ret
-
 print_dapack:
     mov al, 13
     call print_char
@@ -189,6 +150,7 @@ DAPACK:
 .seg:   dw 0 ; in memory page zero
 .addr:  dq 0 ; put the lba to read in this spot
 
-times 510-($-$$) db 0
+times 446-($-$$) db 0
+partitions: times 4 * 16 db 0
 db 0x55
 db 0xaa
