@@ -14,16 +14,18 @@ struc Node
     .ctime_nsec: resd 1
     .mtime: resq 1
     .mtime_nsec: resd 1
-    .name: resb 222
+    .atime: resq 1
+    .atime_nsec: resd 1
+    .name: resb 226
     .parent: resq 1
     .next: resq 1
-    .extents: resb (BLOCK_SIZE - 272)
+    .extents: resb (BLOCK_SIZE - 288)
 endstruc
 
 struc Header
     ; Signature, should be b"RedoxFS\0"
     .signature: resb 8
-    ; Version, should be 2
+    ; Version, should be 4
     .version: resq 1,
     ; Disk ID, a 128-bit unique identifier
     .uuid: resb 16,
@@ -217,7 +219,7 @@ redoxfs.open:
         ret
 
     .signature: db "RedoxFS",0
-    .version: dq 3
+    .version: dq 4
 
 
 redoxfs.root:
