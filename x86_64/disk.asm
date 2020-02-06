@@ -10,7 +10,7 @@ startup_start:
 %ifdef ARCH_x86_64
     %include "startup-x86_64.asm"
 %endif
-align 512, db 0
+align BLOCK_SIZE, db 0
 startup_end:
 
 %ifdef KERNEL
@@ -18,14 +18,13 @@ startup_end:
       %defstr KERNEL_STR %[KERNEL]
       incbin KERNEL_STR
     .end:
-    align 512, db 0
-%else
     align BLOCK_SIZE, db 0
+%else
     %ifdef FILESYSTEM
      filesystem:
          %defstr FILESYSTEM_STR %[FILESYSTEM]
          incbin FILESYSTEM_STR
-     align BLOCK_SIZE, db 0
      .end:
+     align BLOCK_SIZE, db 0
     %endif
 %endif
