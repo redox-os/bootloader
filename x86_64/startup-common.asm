@@ -28,7 +28,6 @@ startup:
 
         %ifdef FILESYSTEM
             mov eax, (filesystem - boot) / 512
-            mov ebx, (filesystem.end - filesystem) / 512
         %else
             call find_redoxfs_partition
         %endif

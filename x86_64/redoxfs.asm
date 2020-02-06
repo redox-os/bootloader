@@ -41,10 +41,8 @@ endstruc
 
 ; IN
 ; eax - the first sector of the filesystem
-; edx - the amount of sectors in the filesystem
 redoxfs:
         mov [.first_sector], eax
-        mov [.sector_count], ebx
         call redoxfs.open
         test eax, eax
         jz .good_header
@@ -79,7 +77,6 @@ redoxfs:
         times BLOCK_SIZE db 0
 
     .first_sector: dd 0
-    .sector_count: dd 0
 
     .env:
         db "REDOXFS_BLOCK="

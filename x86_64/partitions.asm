@@ -11,7 +11,6 @@ endstruc
 ; The partition has to be one of the primary MBR partitions.
 ; OUT
 ;   eax - start_lba
-;   edx - sector count
 ; CLOBBER
 ;   ebx
 find_redoxfs_partition:
@@ -26,7 +25,6 @@ find_redoxfs_partition:
     jmp .notfound
 .found:
     mov eax, [partitions + mbr_partition_rec + mbr_partition_rec.lba_start]
-    mov edx, [partitions + mbr_partition_rec + mbr_partition_rec.sector_count]
     ret
 .notfound:
     mov si, .no_partition_found_msg
