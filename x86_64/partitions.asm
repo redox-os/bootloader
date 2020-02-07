@@ -29,6 +29,6 @@ find_redoxfs_partition:
 .notfound:
     mov si, .no_partition_found_msg
     call print
-    mov eax, (startup_end - boot) / 512
+    mov eax, (filesystem - boot) / 512
     ret
 .no_partition_found_msg: db "No MBR partition with type 0x83 found", 0xA, 0xD, 0
