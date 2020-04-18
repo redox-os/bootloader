@@ -8,6 +8,8 @@ args:
     .stack_size dq 0
     .env_base dq 0
     .env_size dq 0
+    .acpi_rsdps_base dq 0
+    .acpi_rsdps_size dq 0
 
 startup:
     ; enable A20-Line via IO-Port 92, might not work on all motherboards
