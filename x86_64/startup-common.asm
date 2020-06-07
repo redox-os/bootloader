@@ -42,6 +42,8 @@ startup:
     jmp .loaded_kernel
 
 .loaded_kernel:
+    call check_cpuid
+
     call memory_map
 
     call vesa
@@ -139,6 +141,7 @@ load_extent:
 %include "memory_map.asm"
 %include "vesa.asm"
 %include "initialize.asm"
+%include "cpuid.asm"
 %ifndef KERNEL
     %include "redoxfs.asm"
     %ifndef FILESYSTEM
