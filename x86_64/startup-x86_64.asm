@@ -63,12 +63,12 @@ startup_arch:
     rep stosd
 
     xor edi, edi
-    ;Link first PML4 and second to last PML4 to PDP
+    ;Link first user and first kernel PML4 to PDP
     mov DWORD [es:edi], 0x71000 | 1 << 1 | 1
-    mov DWORD [es:edi + 510*8], 0x71000 | 1 << 1 | 1
+    mov DWORD [es:edi + 256*8], 0x71000 | 1 << 1 | 1
+    ; Link last PML4 to PML4 for recursive compatibility
+    mov DWORD [es:edi + 511*8], 0x70000 | 1 << 1 | 1
     add edi, 0x1000
-    ;Link last PML4 to PML4
-    mov DWORD [es:edi - 8], 0x70000 | 1 << 1 | 1
     ;Link first four PDP to PD
     mov DWORD [es:edi], 0x72000 | 1 << 1 | 1
     mov DWORD [es:edi + 8], 0x73000 | 1 << 1 | 1
@@ -123,7 +123,7 @@ long_mode:
     mov ss, rax
 
     ; stack_base
-    mov rsi, 0xFFFFFF0000080000
+    mov rsi, 0xFFFF800000080000
     mov [args.stack_base], rsi
     ; stack_size
     mov rcx, 0x1F000
