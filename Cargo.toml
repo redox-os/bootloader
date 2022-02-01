@@ -1,0 +1,11 @@
+[package]
+name = "redox_bootloader"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+name = "bootloader"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+[dependencies]

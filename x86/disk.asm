@@ -3,8 +3,8 @@ sectalign off
 %include "bootsector.asm"
 
 startup_start:
-%ifdef ARCH_i386
-    %include "startup-i386.asm"
+%ifdef ARCH_x86
+    %include "startup-x86.asm"
 %endif
 
 %ifdef ARCH_x86_64
