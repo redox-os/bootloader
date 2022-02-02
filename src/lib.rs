@@ -17,6 +17,11 @@ use linked_list_allocator::LockedHeap;
 
 mod panic;
 
+const VBE_CARD_INFO_ADDR: usize = 0x1000;
+const VBE_MODE_INFO_ADDR: usize = 0x2000;
+const STACK_ADDR: usize = 0x7C00;
+const VGA_ADDR: usize = 0xB8000;
+
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
@@ -34,14 +39,12 @@ pub struct ThunkData {
 }
 
 impl ThunkData {
-    pub const STACK: usize = 0x7C00;
-
     pub fn new() -> Self {
         Self {
             di: 0,
             si: 0,
             bp: 0,
-            sp: Self::STACK as u16,
+            sp: STACK_ADDR as u16,
             bx: 0,
             dx: 0,
             cx: 0,
@@ -50,11 +53,11 @@ impl ThunkData {
     }
 
     pub unsafe fn save(&self) {
-        ptr::write((Self::STACK - 16) as *mut ThunkData, *self);
+        ptr::write((STACK_ADDR - 16) as *mut ThunkData, *self);
     }
 
     pub unsafe fn load(&mut self) {
-        *self = ptr::read((Self::STACK - 16) as *const ThunkData);
+        *self = ptr::read((STACK_ADDR - 16) as *const ThunkData);
     }
 
     pub unsafe fn with(&mut self, f: extern "C" fn()) {
@@ -241,7 +244,7 @@ pub unsafe extern "C" fn kstart(
         data.with(thunk10);
     }
 
-    let mut vga = Vga::new(0xb8000 as *mut VgaTextBlock, 80, 25);
+    let mut vga = Vga::new(VGA_ADDR as *mut VgaTextBlock, 80, 25);
 
     for i in 0..vga.blocks.len() {
         vga.blocks[i].char = 0;
@@ -263,10 +266,10 @@ pub unsafe extern "C" fn kstart(
         // Get card info
         let mut data = ThunkData::new();
         data.ax = 0x4F00;
-        data.di = 0x1000;
+        data.di = VBE_CARD_INFO_ADDR as u16;
         data.with(thunk10);
         if data.ax == 0x004F {
-            let card_info = ptr::read(0x1000 as *const VbeCardInfo);
+            let card_info = ptr::read(VBE_CARD_INFO_ADDR as *const VbeCardInfo);
 
             let mut mode_ptr = card_info.videomodeptr as *const u16;
             loop {
@@ -281,10 +284,10 @@ pub unsafe extern "C" fn kstart(
                 let mut data = ThunkData::new();
                 data.ax = 0x4F01;
                 data.cx = mode;
-                data.di = 0x2000;
+                data.di = VBE_MODE_INFO_ADDR as u16;
                 data.with(thunk10);
                 if data.ax == 0x004F {
-                    let mode_info = ptr::read(0x2000 as *const VbeModeInfo);
+                    let mode_info = ptr::read(VBE_MODE_INFO_ADDR as *const VbeModeInfo);
 
                     // We only support 32-bits per pixel modes
                     if mode_info.bitsperpixel != 32 {
@@ -354,13 +357,6 @@ pub unsafe extern "C" fn kstart(
         // Read keypress
         let mut data = ThunkData::new();
         data.with(thunk16);
-        writeln!(
-            vga,
-            "{:?} 0x{:02X}",
-            (data.ax as u8) as char,
-            (data.ax >> 8) as u8
-        );
-
         match (data.ax >> 8) as u8 {
             0x4B /* Left */ => {
                 if let Some(mut mode_i) = modes.iter().position(|x| x.0 == selected) {
