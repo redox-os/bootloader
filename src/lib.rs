@@ -155,8 +155,17 @@ pub unsafe extern "C" fn kstart(
     thunk16: extern "C" fn(),
 ) -> ! {
     {
+        // Make sure we are in mode 3 (80x25 text mode)
         let mut data = ThunkData::new();
         data.ax = 0x03;
+        data.with(thunk10);
+    }
+
+    {
+        // Disable cursor
+        let mut data = ThunkData::new();
+        data.ax = 0x0100;
+        data.cx = 0x3F00;
         data.with(thunk10);
     }
 
@@ -172,6 +181,7 @@ pub unsafe extern "C" fn kstart(
     writeln!(vga, "Arrow keys and space select mode, enter to continue");
 
     loop {
+        // Read keypress
         let mut data = ThunkData::new();
         data.with(thunk16);
         writeln!(
