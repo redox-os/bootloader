@@ -3,13 +3,22 @@
 #![feature(lang_items)]
 #![feature(llvm_asm)]
 
+#[macro_use]
+extern crate alloc;
+
+use alloc::vec::Vec;
 use core::{
+    cmp,
     fmt::{self, Write},
     ptr,
     slice,
 };
+use linked_list_allocator::LockedHeap;
 
 mod panic;
+
+#[global_allocator]
+static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 #[derive(Clone, Copy)]
 #[repr(packed)]
@@ -117,6 +126,7 @@ pub struct VgaTextBlock {
     color: u8,
 }
 
+#[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum VgaTextColor {
     Black = 0,
@@ -143,6 +153,8 @@ pub struct Vga {
     height: usize,
     x: usize,
     y: usize,
+    bg: VgaTextColor,
+    fg: VgaTextColor,
 }
 
 impl Vga {
@@ -156,6 +168,8 @@ impl Vga {
             height,
             x: 0,
             y: 0,
+            bg: VgaTextColor::DarkGray,
+            fg: VgaTextColor::White,
         }
     }
 }
@@ -192,6 +206,9 @@ impl fmt::Write for Vga {
                     let i = self.y * self.width + self.x;
                     if let Some(block) = self.blocks.get_mut(i) {
                         block.char = c as u8;
+                        block.color =
+                            ((self.bg as u8) << 4) |
+                            (self.fg as u8);
                     }
                 }
             }
@@ -233,6 +250,15 @@ pub unsafe extern "C" fn kstart(
             (VgaTextColor::White as u8);
     }
 
+    // Initialize allocator at the end of stage 3 with a meager 1 MiB
+    extern "C" {
+        static mut __end: u8;
+    }
+    let heap_start = &__end as *const _ as usize;
+    let heap_size = 1024 * 1024;
+    ALLOCATOR.lock().init(heap_start, heap_size);
+
+    let mut modes = Vec::new();
     {
         // Get card info
         let mut data = ThunkData::new();
@@ -242,33 +268,47 @@ pub unsafe extern "C" fn kstart(
         if data.ax == 0x004F {
             let card_info = ptr::read(0x1000 as *const VbeCardInfo);
 
-            let mut modes = card_info.videomodeptr as *const u16;
+            let mut mode_ptr = card_info.videomodeptr as *const u16;
             loop {
-                let mode = *modes;
+                // Ask for linear frame buffer with mode
+                let mode = *mode_ptr | (1 << 14);
                 if mode == 0xFFFF {
                     break;
                 }
-                modes = modes.add(1);
+                mode_ptr = mode_ptr.add(1);
 
                 // Get mode info
                 let mut data = ThunkData::new();
                 data.ax = 0x4F01;
-                // Ask for linear frame buffer with mode
-                data.cx = mode | (1 << 14);
+                data.cx = mode;
                 data.di = 0x2000;
                 data.with(thunk10);
                 if data.ax == 0x004F {
                     let mode_info = ptr::read(0x2000 as *const VbeModeInfo);
 
                     // We only support 32-bits per pixel modes
-                    if mode_info.bitsperpixel == 32 {
-                        writeln!(
-                            vga,
-                            "{}x{}",
-                            mode_info.xresolution,
-                            mode_info.yresolution
-                        );
+                    if mode_info.bitsperpixel != 32 {
+                        continue;
                     }
+
+                    let w = mode_info.xresolution as u32;
+                    let h = mode_info.yresolution as u32;
+
+                    let mut aspect_w = w;
+                    let mut aspect_h = h;
+                    for i in 2..cmp::min(aspect_w / 2, aspect_h / 2) {
+                        while aspect_w % i == 0 && aspect_h % i == 0 {
+                            aspect_w /= i;
+                            aspect_h /= i;
+                        }
+                    }
+
+                    //TODO: support resolutions that are not perfect multiples of 4
+                    if w % 4 != 0 {
+                        continue;
+                    }
+
+                    modes.push((mode, w, h, format!("{:>4}x{:<4} {:>3}:{:<3}", w, h, aspect_w, aspect_h)));
                 } else {
                     writeln!(vga, "Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.ax);
                 }
@@ -278,8 +318,39 @@ pub unsafe extern "C" fn kstart(
         }
     }
 
+    // Sort modes by pixel area, reversed
+    modes.sort_by(|a, b| (b.1 * b.2).cmp(&(a.1 * a.2)));
+
     writeln!(vga, "Arrow keys and space select mode, enter to continue");
+
+    //TODO 0x4F03 VBE function to get current mode
+    let rows = 12;
+    let mut selected = modes.get(0).map_or(0, |x| x.0);
     loop {
+        let mut row = 0;
+        let mut col = 0;
+        for (mode, w, h, text) in modes.iter() {
+            if row >= rows {
+                col += 1;
+                row = 0;
+            }
+
+            vga.x = 1 + col * 20;
+            vga.y = 1 + row;
+
+            if *mode == selected {
+                vga.bg = VgaTextColor::White;
+                vga.fg = VgaTextColor::Black;
+            } else {
+                vga.bg = VgaTextColor::DarkGray;
+                vga.fg = VgaTextColor::White;
+            }
+
+            write!(vga, "{}", text);
+
+            row += 1;
+        }
+
         // Read keypress
         let mut data = ThunkData::new();
         data.with(thunk16);
@@ -289,5 +360,67 @@ pub unsafe extern "C" fn kstart(
             (data.ax as u8) as char,
             (data.ax >> 8) as u8
         );
+
+        match (data.ax >> 8) as u8 {
+            0x4B /* Left */ => {
+                if let Some(mut mode_i) = modes.iter().position(|x| x.0 == selected) {
+                    if mode_i < rows {
+                        while mode_i < modes.len() {
+                            mode_i += rows;
+                        }
+                    }
+                    mode_i -= rows;
+                    if let Some(new) = modes.get(mode_i) {
+                        selected = new.0;
+                    }
+                }
+            },
+            0x4D /* Right */ => {
+                if let Some(mut mode_i) = modes.iter().position(|x| x.0 == selected) {
+                    mode_i += rows;
+                    if mode_i >= modes.len() {
+                        mode_i = mode_i % rows;
+                    }
+                    if let Some(new) = modes.get(mode_i) {
+                        selected = new.0;
+                    }
+                }
+            },
+            0x48 /* Up */ => {
+                if let Some(mut mode_i) = modes.iter().position(|x| x.0 == selected) {
+                    if mode_i % rows == 0 {
+                        mode_i += rows;
+                        if mode_i > modes.len() {
+                            mode_i = modes.len();
+                        }
+                    }
+                    mode_i -= 1;
+                    if let Some(new) = modes.get(mode_i) {
+                        selected = new.0;
+                    }
+                }
+            },
+            0x50 /* Down */ => {
+                if let Some(mut mode_i) = modes.iter().position(|x| x.0 == selected) {
+                    mode_i += 1;
+                    if mode_i % rows == 0 {
+                        mode_i -= rows;
+                    }
+                    if mode_i >= modes.len() {
+                        mode_i = mode_i - mode_i % rows;
+                    }
+                    if let Some(new) = modes.get(mode_i) {
+                        selected = new.0;
+                    }
+                }
+            },
+            0x1C /* Enter */ => {
+                let mut data = ThunkData::new();
+                data.ax = 0x4F02;
+                data.bx = selected;
+                data.with(thunk10);
+            },
+            _ => (),
+        }
     }
 }
