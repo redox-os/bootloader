@@ -55,6 +55,61 @@ impl ThunkData {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+#[repr(packed)]
+pub struct VbeCardInfo {
+	signature: [u8; 4],
+	version: u16,
+	oemstring: u32,
+	capabilities: u32,
+	videomodeptr: u32,
+	totalmemory: u16,
+	oemsoftwarerev: u16,
+	oemvendornameptr: u32,
+	oemproductnameptr: u32,
+	oemproductrevptr: u32,
+	reserved: [u8; 222],
+	oemdata: [u8; 256],
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(packed)]
+pub struct VbeModeInfo {
+	attributes: u16,
+	winA: u8,
+	winB: u8,
+	granularity: u16,
+	winsize: u16,
+	segmentA: u16,
+	segmentB: u16,
+	winfuncptr: u32,
+	bytesperscanline: u16,
+	xresolution: u16,
+	yresolution: u16,
+	xcharsize: u8,
+	ycharsize: u8,
+	numberofplanes: u8,
+	bitsperpixel: u8,
+	numberofbanks: u8,
+	memorymodel: u8,
+	banksize: u8,
+	numberofimagepages: u8,
+	unused: u8,
+	redmasksize: u8,
+	redfieldposition: u8,
+	greenmasksize: u8,
+	greenfieldposition: u8,
+	bluemasksize: u8,
+	bluefieldposition: u8,
+	rsvdmasksize: u8,
+	rsvdfieldposition: u8,
+	directcolormodeinfo: u8,
+	physbaseptr: u32,
+	offscreenmemoryoffset: u32,
+	offscreenmemsize: u16,
+	reserved: [u8; 206],
+}
+
 #[derive(Clone, Copy)]
 #[repr(packed)]
 pub struct VgaTextBlock {
@@ -178,15 +233,59 @@ pub unsafe extern "C" fn kstart(
             (VgaTextColor::White as u8);
     }
 
-    writeln!(vga, "Arrow keys and space select mode, enter to continue");
+    {
+        // Get card info
+        let mut data = ThunkData::new();
+        data.ax = 0x4F00;
+        data.di = 0x1000;
+        data.with(thunk10);
+        if data.ax == 0x004F {
+            let card_info = ptr::read(0x1000 as *const VbeCardInfo);
 
+            let mut modes = card_info.videomodeptr as *const u16;
+            loop {
+                let mode = *modes;
+                if mode == 0xFFFF {
+                    break;
+                }
+                modes = modes.add(1);
+
+                // Get mode info
+                let mut data = ThunkData::new();
+                data.ax = 0x4F01;
+                // Ask for linear frame buffer with mode
+                data.cx = mode | (1 << 14);
+                data.di = 0x2000;
+                data.with(thunk10);
+                if data.ax == 0x004F {
+                    let mode_info = ptr::read(0x2000 as *const VbeModeInfo);
+
+                    // We only support 32-bits per pixel modes
+                    if mode_info.bitsperpixel == 32 {
+                        writeln!(
+                            vga,
+                            "{}x{}",
+                            mode_info.xresolution,
+                            mode_info.yresolution
+                        );
+                    }
+                } else {
+                    writeln!(vga, "Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.ax);
+                }
+            }
+        } else {
+            writeln!(vga, "Failed to read VBE card info: 0x{:04X}", data.ax);
+        }
+    }
+
+    writeln!(vga, "Arrow keys and space select mode, enter to continue");
     loop {
         // Read keypress
         let mut data = ThunkData::new();
         data.with(thunk16);
         writeln!(
             vga,
-            "'{}' 0x{:02X}",
+            "{:?} 0x{:02X}",
             (data.ax as u8) as char,
             (data.ax >> 8) as u8
         );
