@@ -46,7 +46,7 @@ startup:
 
     call memory_map
 
-    call vesa
+    ;TODO call vesa
 
     mov si, init_fpu_msg
     call print
