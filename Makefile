@@ -24,7 +24,7 @@ build/bootloader.elf: linkers/$(ARCH).ld build/libbootloader.a
 
 build/bootloader.bin: build/bootloader.elf $(ARCH)/**
 	mkdir -p build
-	nasm -f bin -o $@ -l $@.lst -D ARCH_$(ARCH) -D KERNEL=$< -i$(ARCH) $(ARCH)/disk.asm
+	nasm -f bin -o $@ -l $@.lst -D STAGE3=$< -i$(ARCH) $(ARCH)/bootloader.asm
 
 build/harddrive.bin: build/bootloader.bin
 	mkdir -p build

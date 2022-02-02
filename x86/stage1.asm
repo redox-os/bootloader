@@ -2,7 +2,7 @@ ORG 0x7C00
 SECTION .text
 USE16
 
-boot: ; dl comes with disk
+stage1: ; dl comes with disk
     ; initialize segment registers
     xor ax, ax
     mov ds, ax
@@ -26,17 +26,9 @@ boot: ; dl comes with disk
     call print
     call print_line
 
-    mov bx, (startup_start - boot) / 512
-    call print_hex
-    call print_line
-
-    mov bx, startup_start
-    call print_hex
-    call print_line
-
-    mov eax, (startup_start - boot) / 512
-    mov bx, startup_start
-    mov cx, (startup_end - startup_start) / 512
+    mov eax, (stage2 - stage1) / 512
+    mov bx, stage2
+    mov cx, (stage2.end - stage2) / 512
     xor dx, dx
     call load
 
@@ -45,7 +37,7 @@ boot: ; dl comes with disk
     call print
     call print_line
 
-    jmp startup
+    jmp stage2.entry
 
 ; load some sectors from disk to a buffer in memory
 ; buffer has to be below 1MiB

@@ -8,6 +8,14 @@ thunk:
     mov dword [.func], .int13_real
     jmp .enter
 
+.int15:
+    mov dword [.func], .int15_real
+    jmp .enter
+
+.int16:
+    mov dword [.func], .int16_real
+    jmp .enter
+
 .func: dd 0
 .esp: dd 0
 .cr0: dd 0
@@ -48,15 +56,19 @@ thunk:
 
 USE16
 .int10_real:
-    sti
     int 0x10
-    cli
-    ; ret
+    ret
 
 .int13_real:
-    sti
     int 0x13
-    cli
+    ret
+
+.int15_real:
+    int 0x15
+    ret
+
+.int16_real:
+    int 0x16
     ret
 
 .pm16:
@@ -94,8 +106,14 @@ USE16
     ; load registers
     popa
 
+    ; enable interrupts
+    sti
+
     ; call real mode function
     call [.func]
+
+    ; disable interrupts
+    cli
 
     ; save registers
     pusha

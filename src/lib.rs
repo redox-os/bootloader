@@ -4,37 +4,12 @@
 #![feature(llvm_asm)]
 
 use core::{
+    fmt::{self, Write},
     ptr,
     slice,
 };
 
 mod panic;
-
-#[repr(packed)]
-pub struct VgaTextBlock {
-    char: u8,
-    color: u8,
-}
-
-#[repr(u8)]
-pub enum VgaTextColor {
-    Black = 0,
-    Blue = 1,
-    Green = 2,
-    Cyan = 3,
-    Red = 4,
-    Purple = 5,
-    Brown = 6,
-    Gray = 7,
-    DarkGray = 8,
-    LightBlue = 9,
-    LightGreen = 10,
-    LightCyan = 11,
-    LightRed = 12,
-    LightPurple = 13,
-    Yellow = 14,
-    White = 15,
-}
 
 #[derive(Clone, Copy)]
 #[repr(packed)]
@@ -80,10 +55,104 @@ impl ThunkData {
     }
 }
 
+#[derive(Clone, Copy)]
+#[repr(packed)]
+pub struct VgaTextBlock {
+    char: u8,
+    color: u8,
+}
+
+#[repr(u8)]
+pub enum VgaTextColor {
+    Black = 0,
+    Blue = 1,
+    Green = 2,
+    Cyan = 3,
+    Red = 4,
+    Purple = 5,
+    Brown = 6,
+    Gray = 7,
+    DarkGray = 8,
+    LightBlue = 9,
+    LightGreen = 10,
+    LightCyan = 11,
+    LightRed = 12,
+    LightPurple = 13,
+    Yellow = 14,
+    White = 15,
+}
+
+pub struct Vga {
+    blocks: &'static mut [VgaTextBlock],
+    width: usize,
+    height: usize,
+    x: usize,
+    y: usize,
+}
+
+impl Vga {
+    pub unsafe fn new(ptr: *mut VgaTextBlock, width: usize, height: usize) -> Self {
+        Self {
+            blocks: slice::from_raw_parts_mut(
+                ptr,
+                width * height
+            ),
+            width,
+            height,
+            x: 0,
+            y: 0,
+        }
+    }
+}
+
+impl fmt::Write for Vga {
+    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
+        for c in s.chars() {
+            if self.x >= self.width {
+                self.x = 0;
+                self.y += 1;
+            }
+            while self.y >= self.height {
+                for y in 1..self.height {
+                    for x in 0..self.width {
+                        let i = y * self.width + x;
+                        let j = i - self.width;
+                        self.blocks[j] = self.blocks[i];
+                        if y + 1 == self.height {
+                            self.blocks[i].char = 0;
+                        }
+                    }
+                }
+                self.y -= 1;
+            }
+            match c {
+                '\r' => {
+                    self.x = 0;
+                },
+                '\n' => {
+                    self.x = 0;
+                    self.y += 1;
+                },
+                _ => {
+                    let i = self.y * self.width + self.x;
+                    if let Some(block) = self.blocks.get_mut(i) {
+                        block.char = c as u8;
+                    }
+                }
+            }
+            self.x += 1;
+        }
+
+        Ok(())
+    }
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn kstart(
     thunk10: extern "C" fn(),
     thunk13: extern "C" fn(),
+    thunk15: extern "C" fn(),
+    thunk16: extern "C" fn(),
 ) -> ! {
     {
         let mut data = ThunkData::new();
@@ -91,33 +160,25 @@ pub unsafe extern "C" fn kstart(
         data.with(thunk10);
     }
 
-    let vga = slice::from_raw_parts_mut(
-        0xb8000 as *mut VgaTextBlock,
-        80 * 25
-    );
+    let mut vga = Vga::new(0xb8000 as *mut VgaTextBlock, 80, 25);
 
-    for i in 0..vga.len() {
-        vga[i].char = 0;
-        vga[i].color =
+    for i in 0..vga.blocks.len() {
+        vga.blocks[i].char = 0;
+        vga.blocks[i].color =
             ((VgaTextColor::DarkGray as u8) << 4) |
             (VgaTextColor::White as u8);
     }
 
-    let draw_text = |vga: &mut [VgaTextBlock], x: usize, y: usize, text: &str| {
-        let mut i = y * 80 + x;
-        for c in text.chars() {
-            if let Some(block) = vga.get_mut(i) {
-                block.char = c as u8;
-            }
-            i += 1;
-        }
-    };
+    writeln!(vga, "Arrow keys and space select mode, enter to continue");
 
-    draw_text(
-        vga,
-        10, 1,
-        "Arrow keys and space select mode, enter to continue"
-    );
-
-    loop {}
+    loop {
+        let mut data = ThunkData::new();
+        data.with(thunk16);
+        writeln!(
+            vga,
+            "'{}' 0x{:02X}",
+            (data.ax as u8) as char,
+            (data.ax >> 8) as u8
+        );
+    }
 }
