@@ -113,6 +113,7 @@ dependencies = [
 [[package]]
 name = "redoxfs"
 version = "0.5.0"
+source = "git+https://gitlab.redox-os.org/redox-os/redoxfs.git?branch=0.5.0#13d220fe6e954be4bbf7e20ccd117761474ae446"
 dependencies = [
  "aes",
  "generic-array",

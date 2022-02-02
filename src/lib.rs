@@ -15,212 +15,26 @@ use core::{
 };
 use linked_list_allocator::LockedHeap;
 
-mod panic;
+use self::thunk::ThunkData;
+use self::vbe::{VbeCardInfo, VbeModeInfo};
+use self::vga::{VgaTextBlock, VgaTextColor, Vga};
 
-const VBE_CARD_INFO_ADDR: usize = 0x1000;
-const VBE_MODE_INFO_ADDR: usize = 0x2000;
-const STACK_ADDR: usize = 0x7C00;
+mod panic;
+mod thunk;
+mod vbe;
+mod vga;
+
+// Real mode memory allocation, for use with thunk
+// 0x500 to 0x7BFF is free
+const VBE_CARD_INFO_ADDR: usize = 0x500; // 512 bytes, ends at 0x6FF
+const VBE_MODE_INFO_ADDR: usize = 0x700; // 256 bytes, ends at 0x7FF
+const DISK_ADDRESS_PACKET_ADDR: usize = 0x0FF0; // 16 bytes, ends at 0x0FFF
+const DISK_BIOS_ADDR: usize = 0x1000; // 4096 bytes, ends at 0x1FFF
+const THUNK_STACK_ADDR: usize = 0x7C00; // Grows downwards
 const VGA_ADDR: usize = 0xB8000;
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
-
-#[derive(Clone, Copy)]
-#[repr(packed)]
-pub struct ThunkData {
-    di: u16,
-    si: u16,
-    bp: u16,
-    sp: u16,
-    bx: u16,
-    dx: u16,
-    cx: u16,
-    ax: u16,
-}
-
-impl ThunkData {
-    pub fn new() -> Self {
-        Self {
-            di: 0,
-            si: 0,
-            bp: 0,
-            sp: STACK_ADDR as u16,
-            bx: 0,
-            dx: 0,
-            cx: 0,
-            ax: 0,
-        }
-    }
-
-    pub unsafe fn save(&self) {
-        ptr::write((STACK_ADDR - 16) as *mut ThunkData, *self);
-    }
-
-    pub unsafe fn load(&mut self) {
-        *self = ptr::read((STACK_ADDR - 16) as *const ThunkData);
-    }
-
-    pub unsafe fn with(&mut self, f: extern "C" fn()) {
-        self.save();
-        f();
-        self.load();
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(packed)]
-pub struct VbeCardInfo {
-	signature: [u8; 4],
-	version: u16,
-	oemstring: u32,
-	capabilities: u32,
-	videomodeptr: u32,
-	totalmemory: u16,
-	oemsoftwarerev: u16,
-	oemvendornameptr: u32,
-	oemproductnameptr: u32,
-	oemproductrevptr: u32,
-	reserved: [u8; 222],
-	oemdata: [u8; 256],
-}
-
-#[derive(Clone, Copy, Debug)]
-#[repr(packed)]
-pub struct VbeModeInfo {
-	attributes: u16,
-	winA: u8,
-	winB: u8,
-	granularity: u16,
-	winsize: u16,
-	segmentA: u16,
-	segmentB: u16,
-	winfuncptr: u32,
-	bytesperscanline: u16,
-	xresolution: u16,
-	yresolution: u16,
-	xcharsize: u8,
-	ycharsize: u8,
-	numberofplanes: u8,
-	bitsperpixel: u8,
-	numberofbanks: u8,
-	memorymodel: u8,
-	banksize: u8,
-	numberofimagepages: u8,
-	unused: u8,
-	redmasksize: u8,
-	redfieldposition: u8,
-	greenmasksize: u8,
-	greenfieldposition: u8,
-	bluemasksize: u8,
-	bluefieldposition: u8,
-	rsvdmasksize: u8,
-	rsvdfieldposition: u8,
-	directcolormodeinfo: u8,
-	physbaseptr: u32,
-	offscreenmemoryoffset: u32,
-	offscreenmemsize: u16,
-	reserved: [u8; 206],
-}
-
-#[derive(Clone, Copy)]
-#[repr(packed)]
-pub struct VgaTextBlock {
-    char: u8,
-    color: u8,
-}
-
-#[derive(Clone, Copy)]
-#[repr(u8)]
-pub enum VgaTextColor {
-    Black = 0,
-    Blue = 1,
-    Green = 2,
-    Cyan = 3,
-    Red = 4,
-    Purple = 5,
-    Brown = 6,
-    Gray = 7,
-    DarkGray = 8,
-    LightBlue = 9,
-    LightGreen = 10,
-    LightCyan = 11,
-    LightRed = 12,
-    LightPurple = 13,
-    Yellow = 14,
-    White = 15,
-}
-
-pub struct Vga {
-    blocks: &'static mut [VgaTextBlock],
-    width: usize,
-    height: usize,
-    x: usize,
-    y: usize,
-    bg: VgaTextColor,
-    fg: VgaTextColor,
-}
-
-impl Vga {
-    pub unsafe fn new(ptr: *mut VgaTextBlock, width: usize, height: usize) -> Self {
-        Self {
-            blocks: slice::from_raw_parts_mut(
-                ptr,
-                width * height
-            ),
-            width,
-            height,
-            x: 0,
-            y: 0,
-            bg: VgaTextColor::DarkGray,
-            fg: VgaTextColor::White,
-        }
-    }
-}
-
-impl fmt::Write for Vga {
-    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
-        for c in s.chars() {
-            if self.x >= self.width {
-                self.x = 0;
-                self.y += 1;
-            }
-            while self.y >= self.height {
-                for y in 1..self.height {
-                    for x in 0..self.width {
-                        let i = y * self.width + x;
-                        let j = i - self.width;
-                        self.blocks[j] = self.blocks[i];
-                        if y + 1 == self.height {
-                            self.blocks[i].char = 0;
-                        }
-                    }
-                }
-                self.y -= 1;
-            }
-            match c {
-                '\r' => {
-                    self.x = 0;
-                },
-                '\n' => {
-                    self.x = 0;
-                    self.y += 1;
-                },
-                _ => {
-                    let i = self.y * self.width + self.x;
-                    if let Some(block) = self.blocks.get_mut(i) {
-                        block.char = c as u8;
-                        block.color =
-                            ((self.bg as u8) << 4) |
-                            (self.fg as u8);
-                    }
-                }
-            }
-            self.x += 1;
-        }
-
-        Ok(())
-    }
-}
 
 #[no_mangle]
 pub unsafe extern "C" fn kstart(
@@ -311,7 +125,12 @@ pub unsafe extern "C" fn kstart(
                         continue;
                     }
 
-                    modes.push((mode, w, h, format!("{:>4}x{:<4} {:>3}:{:<3}", w, h, aspect_w, aspect_h)));
+                    modes.push((
+                        mode,
+                        w, h,
+                        mode_info.physbaseptr,
+                        format!("{:>4}x{:<4} {:>3}:{:<3}", w, h, aspect_w, aspect_h)
+                    ));
                 } else {
                     writeln!(vga, "Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.ax);
                 }
@@ -332,7 +151,7 @@ pub unsafe extern "C" fn kstart(
     loop {
         let mut row = 0;
         let mut col = 0;
-        for (mode, w, h, text) in modes.iter() {
+        for (mode, w, h, ptr, text) in modes.iter() {
             if row >= rows {
                 col += 1;
                 row = 0;
