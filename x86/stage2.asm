@@ -122,6 +122,10 @@ protected_mode:
     mov esp, 0x800000 - 128
 
     ; entry point
+    mov eax, thunk.int16
+    push eax
+    mov eax, thunk.int15
+    push eax
     mov eax, thunk.int13
     push eax
     mov eax, thunk.int10
