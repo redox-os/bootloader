@@ -29,7 +29,7 @@ pub enum VgaTextColor {
 }
 
 pub struct Vga {
-    pub blocks: &'static mut [VgaTextBlock],
+    pub ptr: *mut VgaTextBlock,
     pub width: usize,
     pub height: usize,
     pub x: usize,
@@ -39,12 +39,9 @@ pub struct Vga {
 }
 
 impl Vga {
-    pub unsafe fn new(ptr: *mut VgaTextBlock, width: usize, height: usize) -> Self {
+    pub const unsafe fn new(ptr: *mut VgaTextBlock, width: usize, height: usize) -> Self {
         Self {
-            blocks: slice::from_raw_parts_mut(
-                ptr,
-                width * height
-            ),
+            ptr,
             width,
             height,
             x: 0,
@@ -53,10 +50,18 @@ impl Vga {
             fg: VgaTextColor::White,
         }
     }
+
+    pub unsafe fn blocks(&mut self) -> &'static mut [VgaTextBlock] {
+        slice::from_raw_parts_mut(
+            self.ptr,
+            self.width * self.height,
+        )
+    }
 }
 
 impl fmt::Write for Vga {
     fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
+        let mut blocks = unsafe { self.blocks() };
         for c in s.chars() {
             if self.x >= self.width {
                 self.x = 0;
@@ -67,9 +72,9 @@ impl fmt::Write for Vga {
                     for x in 0..self.width {
                         let i = y * self.width + x;
                         let j = i - self.width;
-                        self.blocks[j] = self.blocks[i];
+                        blocks[j] = blocks[i];
                         if y + 1 == self.height {
-                            self.blocks[i].char = 0;
+                            blocks[i].char = 0;
                         }
                     }
                 }
@@ -85,15 +90,15 @@ impl fmt::Write for Vga {
                 },
                 _ => {
                     let i = self.y * self.width + self.x;
-                    if let Some(block) = self.blocks.get_mut(i) {
+                    if let Some(block) = blocks.get_mut(i) {
                         block.char = c as u8;
                         block.color =
                             ((self.bg as u8) << 4) |
                             (self.fg as u8);
                     }
+                    self.x += 1;
                 }
             }
-            self.x += 1;
         }
 
         Ok(())

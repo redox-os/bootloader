@@ -30,12 +30,13 @@ impl DiskAddressPacket {
 }
 
 pub struct DiskBios {
+    boot_disk: u8,
     thunk13: extern "C" fn(),
 }
 
 impl DiskBios {
-    pub fn new(thunk13: extern "C" fn()) -> Self {
-        Self { thunk13 }
+    pub fn new(boot_disk: u8, thunk13: extern "C" fn()) -> Self {
+        Self { boot_disk, thunk13 }
     }
 }
 
@@ -47,8 +48,7 @@ impl Disk for DiskBios {
 
             let mut data = ThunkData::new();
             data.ax = 0x4200;
-            //TODO: get original drive number!
-            data.dx = 0x0080;
+            data.dx = self.boot_disk as u16;
             data.si = DISK_ADDRESS_PACKET_ADDR as u16;
 
             data.with(self.thunk13);
@@ -66,12 +66,17 @@ impl Disk for DiskBios {
     }
 
     unsafe fn write_at(&mut self, block: u64, buffer: &[u8]) -> Result<usize> {
-        //TODO
-        Ok(0)
+        log::error!(
+            "DiskBios::write_at(0x{:X}, 0x{:X}:0x{:X}) not allowed",
+            block,
+            buffer.as_ptr() as usize,
+            buffer.len()
+        );
+        Err(Error::new(EIO))
     }
 
     fn size(&mut self) -> Result<u64> {
-        //TODO
-        Ok(0)
+        log::error!("DiskBios::size not implemented");
+        Err(Error::new(EIO))
     }
 }

@@ -130,6 +130,9 @@ protected_mode:
     push eax
     mov eax, thunk.int10
     push eax
+    xor eax, eax
+    mov al, [disk]
+    push eax
     mov eax, [args.stage3_base]
     call [eax + 0x18]
 .halt:

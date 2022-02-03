@@ -14,12 +14,16 @@ use core::{
     slice,
 };
 use linked_list_allocator::LockedHeap;
+use log::{error, info};
 
+use self::disk::DiskBios;
+use self::logger::LOGGER;
 use self::thunk::ThunkData;
 use self::vbe::{VbeCardInfo, VbeModeInfo};
 use self::vga::{VgaTextBlock, VgaTextColor, Vga};
 
 mod disk;
+mod logger;
 mod panic;
 mod thunk;
 mod vbe;
@@ -37,8 +41,11 @@ const VGA_ADDR: usize = 0xB8000;
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
+static mut VGA: Vga = unsafe { Vga::new(VGA_ADDR as *mut VgaTextBlock, 80, 25) };
+
 #[no_mangle]
 pub unsafe extern "C" fn kstart(
+    boot_disk: usize,
     thunk10: extern "C" fn(),
     thunk13: extern "C" fn(),
     thunk15: extern "C" fn(),
@@ -59,13 +66,15 @@ pub unsafe extern "C" fn kstart(
         data.with(thunk10);
     }
 
-    let mut vga = Vga::new(VGA_ADDR as *mut VgaTextBlock, 80, 25);
-
-    for i in 0..vga.blocks.len() {
-        vga.blocks[i].char = 0;
-        vga.blocks[i].color =
-            ((VgaTextColor::DarkGray as u8) << 4) |
-            (VgaTextColor::White as u8);
+    {
+        // Clear VGA console
+        let blocks = VGA.blocks();
+        for i in 0..blocks.len() {
+            blocks[i] = VgaTextBlock {
+                char: 0,
+                color: ((VGA.bg as u8) << 4) | (VGA.fg as u8),
+            };
+        }
     }
 
     // Initialize allocator at the end of stage 3 with a meager 1 MiB
@@ -75,6 +84,35 @@ pub unsafe extern "C" fn kstart(
     let heap_start = &__end as *const _ as usize;
     let heap_size = 1024 * 1024;
     ALLOCATOR.lock().init(heap_start, heap_size);
+
+    // Set logger
+    LOGGER.init();
+
+    // Locate RedoxFS
+    {
+        //TODO: ensure boot_disk is 8-bit
+        info!("DISK {:02X}", boot_disk);
+        let disk = DiskBios::new(boot_disk as u8, thunk13);
+        //TODO: get block from partition table
+        let block = 1024 * 1024 / redoxfs::BLOCK_SIZE;
+        match redoxfs::FileSystem::open(disk, Some(block), false) {
+            Ok(mut fs) => {
+                info!("RedoxFS {} MiB", fs.header.size() / 1024 / 1024);
+
+                match fs.tx(|tx| tx.find_node(redoxfs::TreePtr::root(), "kernel")) {
+                    Ok(node) => {
+                        info!("Kernel {} MiB", node.data().size() / 1024 / 1024);
+                    },
+                    Err(err) => {
+                        error!("Failed to find kernel file: {:?}", err);
+                    }
+                }
+            },
+            Err(err) => {
+                error!("Failed to open RedoxFS: {:?}", err);
+            }
+        }
+    }
 
     let mut modes = Vec::new();
     {
@@ -133,20 +171,22 @@ pub unsafe extern "C" fn kstart(
                         format!("{:>4}x{:<4} {:>3}:{:<3}", w, h, aspect_w, aspect_h)
                     ));
                 } else {
-                    writeln!(vga, "Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.ax);
+                    error!("Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.ax);
                 }
             }
         } else {
-            writeln!(vga, "Failed to read VBE card info: 0x{:04X}", data.ax);
+            error!("Failed to read VBE card info: 0x{:04X}", data.ax);
         }
     }
 
     // Sort modes by pixel area, reversed
     modes.sort_by(|a, b| (b.1 * b.2).cmp(&(a.1 * a.2)));
 
-    writeln!(vga, "Arrow keys and space select mode, enter to continue");
+    writeln!(VGA, "Arrow keys and enter select mode").unwrap();
 
     //TODO 0x4F03 VBE function to get current mode
+    let off_x = VGA.x;
+    let off_y = VGA.y;
     let rows = 12;
     let mut selected = modes.get(0).map_or(0, |x| x.0);
     loop {
@@ -158,18 +198,18 @@ pub unsafe extern "C" fn kstart(
                 row = 0;
             }
 
-            vga.x = 1 + col * 20;
-            vga.y = 1 + row;
+            VGA.x = off_x + col * 20;
+            VGA.y = off_y + row;
 
             if *mode == selected {
-                vga.bg = VgaTextColor::White;
-                vga.fg = VgaTextColor::Black;
+                VGA.bg = VgaTextColor::White;
+                VGA.fg = VgaTextColor::Black;
             } else {
-                vga.bg = VgaTextColor::DarkGray;
-                vga.fg = VgaTextColor::White;
+                VGA.bg = VgaTextColor::DarkGray;
+                VGA.fg = VgaTextColor::White;
             }
 
-            write!(vga, "{}", text);
+            write!(VGA, "{}", text).unwrap();
 
             row += 1;
         }

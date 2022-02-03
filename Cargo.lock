@@ -98,8 +98,10 @@ name = "redox_bootloader"
 version = "0.1.0"
 dependencies = [
  "linked_list_allocator",
+ "log",
  "redox_syscall",
  "redoxfs",
+ "spin",
 ]
 
 [[package]]
@@ -114,7 +116,7 @@ dependencies = [
 [[package]]
 name = "redoxfs"
 version = "0.5.0"
-source = "git+https://gitlab.redox-os.org/redox-os/redoxfs.git?branch=0.5.0#13d220fe6e954be4bbf7e20ccd117761474ae446"
+source = "git+https://gitlab.redox-os.org/redox-os/redoxfs.git?branch=0.5.0#a551f3a0b7ea2b004c62665c2bf4003b49ea7eb6"
 dependencies = [
  "aes",
  "generic-array",
@@ -142,6 +144,15 @@ checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
 name = "simple_endian"
 version = "0.2.1"
 source = "git+https://github.com/michalfita/simple-endian-rs.git?rev=7210f40881d16f7f2e3d8d40f6381fa222843caa#7210f40881d16f7f2e3d8d40f6381fa222843caa"
+
+[[package]]
+name = "spin"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "511254be0c5bcf062b019a6c89c01a664aa359ded62f78aa72c6fc137c0590e5"
+dependencies = [
+ "lock_api",
+]
 
 [[package]]
 name = "spinning_top"
