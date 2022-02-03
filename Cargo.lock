@@ -98,6 +98,7 @@ name = "redox_bootloader"
 version = "0.1.0"
 dependencies = [
  "linked_list_allocator",
+ "redox_syscall",
  "redoxfs",
 ]
 

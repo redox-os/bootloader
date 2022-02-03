@@ -19,6 +19,7 @@ use self::thunk::ThunkData;
 use self::vbe::{VbeCardInfo, VbeModeInfo};
 use self::vga::{VgaTextBlock, VgaTextColor, Vga};
 
+mod disk;
 mod panic;
 mod thunk;
 mod vbe;
