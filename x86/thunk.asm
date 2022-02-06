@@ -104,7 +104,7 @@ USE16
     mov esp, 0x7C00 - 16
 
     ; load registers
-    popa
+    popad
 
     ; enable interrupts
     sti
@@ -116,7 +116,7 @@ USE16
     cli
 
     ; save registers
-    pusha
+    pushad
 
     ; restore cr0, will enable protected mode
     mov eax, [.cr0]

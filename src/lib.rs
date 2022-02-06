@@ -54,15 +54,15 @@ pub unsafe extern "C" fn kstart(
     {
         // Make sure we are in mode 3 (80x25 text mode)
         let mut data = ThunkData::new();
-        data.ax = 0x03;
+        data.eax = 0x03;
         data.with(thunk10);
     }
 
     {
         // Disable cursor
         let mut data = ThunkData::new();
-        data.ax = 0x0100;
-        data.cx = 0x3F00;
+        data.eax = 0x0100;
+        data.ecx = 0x3F00;
         data.with(thunk10);
     }
 
@@ -123,10 +123,10 @@ pub unsafe extern "C" fn kstart(
     {
         // Get card info
         let mut data = ThunkData::new();
-        data.ax = 0x4F00;
-        data.di = VBE_CARD_INFO_ADDR as u16;
+        data.eax = 0x4F00;
+        data.edi = VBE_CARD_INFO_ADDR as u32;
         data.with(thunk10);
-        if data.ax == 0x004F {
+        if data.eax == 0x004F {
             let card_info = ptr::read(VBE_CARD_INFO_ADDR as *const VbeCardInfo);
 
             let mut mode_ptr = card_info.videomodeptr as *const u16;
@@ -140,11 +140,11 @@ pub unsafe extern "C" fn kstart(
 
                 // Get mode info
                 let mut data = ThunkData::new();
-                data.ax = 0x4F01;
-                data.cx = mode;
-                data.di = VBE_MODE_INFO_ADDR as u16;
+                data.eax = 0x4F01;
+                data.ecx = mode as u32;
+                data.edi = VBE_MODE_INFO_ADDR as u32;
                 data.with(thunk10);
-                if data.ax == 0x004F {
+                if data.eax == 0x004F {
                     let mode_info = ptr::read(VBE_MODE_INFO_ADDR as *const VbeModeInfo);
 
                     // We only support 32-bits per pixel modes
@@ -176,11 +176,11 @@ pub unsafe extern "C" fn kstart(
                         format!("{:>4}x{:<4} {:>3}:{:<3}", w, h, aspect_w, aspect_h)
                     ));
                 } else {
-                    error!("Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.ax);
+                    error!("Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.eax);
                 }
             }
         } else {
-            error!("Failed to read VBE card info: 0x{:04X}", data.ax);
+            error!("Failed to read VBE card info: 0x{:04X}", data.eax);
         }
     }
 
@@ -222,7 +222,7 @@ pub unsafe extern "C" fn kstart(
         // Read keypress
         let mut data = ThunkData::new();
         data.with(thunk16);
-        match (data.ax >> 8) as u8 {
+        match (data.eax >> 8) as u8 {
             0x4B /* Left */ => {
                 if let Some(mut mode_i) = modes.iter().position(|x| x.0 == selected) {
                     if mode_i < rows {
@@ -277,8 +277,8 @@ pub unsafe extern "C" fn kstart(
             },
             0x1C /* Enter */ => {
                 let mut data = ThunkData::new();
-                data.ax = 0x4F02;
-                data.bx = selected;
+                data.eax = 0x4F02;
+                data.ebx = selected as u32;
                 data.with(thunk10);
             },
             _ => (),

@@ -48,14 +48,14 @@ impl Disk for DiskBios {
                 ptr::write(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket, dap);
 
                 let mut data = ThunkData::new();
-                data.ax = 0x4200;
-                data.dx = self.boot_disk as u16;
-                data.si = DISK_ADDRESS_PACKET_ADDR as u16;
+                data.eax = 0x4200;
+                data.edx = self.boot_disk as u32;
+                data.esi = DISK_ADDRESS_PACKET_ADDR as u32;
 
                 data.with(self.thunk13);
 
                 //TODO: return result on error
-                assert_eq!(data.ax, 0);
+                assert_eq!(data.eax, 0);
 
                 //TODO: check blocks transferred
                 dap = ptr::read(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket);

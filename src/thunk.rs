@@ -5,27 +5,27 @@ use crate::THUNK_STACK_ADDR;
 #[derive(Clone, Copy)]
 #[repr(packed)]
 pub struct ThunkData {
-    pub di: u16,
-    pub si: u16,
-    pub bp: u16,
-    sp: u16,
-    pub bx: u16,
-    pub dx: u16,
-    pub cx: u16,
-    pub ax: u16,
+    pub edi: u32,
+    pub esi: u32,
+    pub ebp: u32,
+    esp: u32,
+    pub ebx: u32,
+    pub edx: u32,
+    pub ecx: u32,
+    pub eax: u32,
 }
 
 impl ThunkData {
     pub fn new() -> Self {
         Self {
-            di: 0,
-            si: 0,
-            bp: 0,
-            sp: THUNK_STACK_ADDR as u16,
-            bx: 0,
-            dx: 0,
-            cx: 0,
-            ax: 0,
+            edi: 0,
+            esi: 0,
+            ebp: 0,
+            esp: THUNK_STACK_ADDR as u32,
+            ebx: 0,
+            edx: 0,
+            ecx: 0,
+            eax: 0,
         }
     }
 
