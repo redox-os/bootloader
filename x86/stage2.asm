@@ -7,6 +7,10 @@ stage2.entry:
     or al, 2
     out 0x92, al
 
+    ; load memory map
+    ;TODO: rewrite this in Rust
+    call memory_map
+
     mov edi, [args.stage3_base]
     mov ecx, (stage3.end - stage3)
     mov [args.stage3_size], ecx
@@ -106,8 +110,9 @@ load_extent:
 
 %include "descriptor_flags.inc"
 %include "gdt_entry.inc"
-%include "unreal.asm"
+%include "memory_map.asm"
 %include "thunk.asm"
+%include "unreal.asm"
 
 USE32
 protected_mode:
