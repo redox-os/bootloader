@@ -4,7 +4,7 @@ TARGET=$(ARCH)-unknown-none
 export LD=ld -m elf_i386
 export OBJCOPY=objcopy
 export PARTED=parted
-export QEMU=qemu-system-i386
+export QEMU=qemu-system-x86_64
 export RUST_TARGET_PATH=$(CURDIR)/targets
 
 all: build/bootloader.bin

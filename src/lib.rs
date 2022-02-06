@@ -95,13 +95,18 @@ pub unsafe extern "C" fn kstart(
         let disk = DiskBios::new(boot_disk as u8, thunk13);
         //TODO: get block from partition table
         let block = 1024 * 1024 / redoxfs::BLOCK_SIZE;
-        match redoxfs::FileSystem::open(disk, Some(block), false) {
+        match redoxfs::FileSystem::open(disk, Some(block)) {
             Ok(mut fs) => {
-                info!("RedoxFS {} MiB", fs.header.size() / 1024 / 1024);
+                info!("RedoxFS {} MiB", fs.header.1.size / 1024 / 1024);
 
-                match fs.tx(|tx| tx.find_node(redoxfs::TreePtr::root(), "kernel")) {
-                    Ok(node) => {
-                        info!("Kernel {} MiB", node.data().size() / 1024 / 1024);
+                match fs.find_node("kernel", fs.header.1.root) {
+                    Ok(node) => match fs.node_len(node.0) {
+                        Ok(len) => {
+                            info!("Kernel {} MiB", len / 1024 / 1024);
+                        },
+                        Err(err) => {
+                            error!("Failed to read kernel file length: {:?}", err);
+                        }
                     },
                     Err(err) => {
                         error!("Failed to find kernel file: {:?}", err);
