@@ -6,7 +6,10 @@
 #[macro_use]
 extern crate alloc;
 
-use alloc::vec::Vec;
+use alloc::{
+    string::String,
+    vec::Vec,
+};
 use core::{
     alloc::{GlobalAlloc, Layout},
     cmp,
@@ -38,11 +41,11 @@ mod vga;
 
 // Real mode memory allocation, for use with thunk
 // 0x500 to 0x7BFF is free
-const VBE_CARD_INFO_ADDR: usize = 0x500; // 512 bytes, ends at 0x6FF
-const VBE_MODE_INFO_ADDR: usize = 0x700; // 256 bytes, ends at 0x7FF
-const MEMORY_MAP_ADDR: usize = 0x800; // 24 bytes, ends at 0x817
-const DISK_ADDRESS_PACKET_ADDR: usize = 0x0FF0; // 16 bytes, ends at 0x0FFF
 const DISK_BIOS_ADDR: usize = 0x1000; // 4096 bytes, ends at 0x1FFF
+const VBE_CARD_INFO_ADDR: usize = 0x2000; // 512 bytes, ends at 0x21FF
+const VBE_MODE_INFO_ADDR: usize = 0x2200; // 256 bytes, ends at 0x22FF
+const MEMORY_MAP_ADDR: usize = 0x2300; // 24 bytes, ends at 0x2317
+const DISK_ADDRESS_PACKET_ADDR: usize = 0x2318; // 16 bytes, ends at 0x2327
 const THUNK_STACK_ADDR: usize = 0x7C00; // Grows downwards
 const VGA_ADDR: usize = 0xB8000;
 
@@ -126,25 +129,25 @@ pub unsafe extern "C" fn kstart(
     ALLOCATOR.lock().init(heap_start, heap_size);
 
     // Locate kernel on RedoxFS
+    //TODO: ensure boot_disk is 8-bit
+    println!("BIOS Disk: {:02X}", boot_disk);
+    let disk = DiskBios::new(boot_disk as u8, thunk13);
+
+    //TODO: get block from partition table
+    let block = 1024 * 1024 / redoxfs::BLOCK_SIZE;
+    let mut fs = redoxfs::FileSystem::open(disk, Some(block))
+        .expect("Failed to open RedoxFS");
+
+    println!("RedoxFS Size: {} MiB", fs.header.1.size / 1024 / 1024);
+
     let kernel = {
-        //TODO: ensure boot_disk is 8-bit
-        println!("BIOS Disk: {:02X}", boot_disk);
-        let disk = DiskBios::new(boot_disk as u8, thunk13);
-
-        //TODO: get block from partition table
-        let block = 1024 * 1024 / redoxfs::BLOCK_SIZE;
-        let mut fs = redoxfs::FileSystem::open(disk, Some(block))
-            .expect("Failed to open RedoxFS");
-
-        println!("RedoxFS Size: {} MiB", fs.header.1.size / 1024 / 1024);
-
         let node = fs.find_node("kernel", fs.header.1.root)
             .expect("failed to find kernel file");
 
         let size = fs.node_len(node.0)
             .expect("failed to read kernel size");
 
-        println!("Kernel Size: {} MiB", size / 1024 / 1024);
+        print!("Kernel: 0/{} MiB", size / 1024 / 1024);
 
         let ptr = ALLOCATOR.alloc_zeroed(
             Layout::from_size_align(size as usize, 4096).unwrap()
@@ -160,16 +163,15 @@ pub unsafe extern "C" fn kstart(
 
         let mut i = 0;
         for chunk in kernel.chunks_mut(1024 * 1024) {
-            print!("\rKernel Loading: {}%", i * 100 / size);
+            print!("\rKernel: {}/{}", i / 1024 / 1024, size / 1024 / 1024);
             i += fs.read_node(node.0, i, chunk, 0, 0)
                 .expect("Failed to read kernel file") as u64;
         }
-        println!("\rKernel Loading: 100%");
+        println!("\rKernel: {}/{}", i / 1024 / 1024, size / 1024 / 1024);
 
         kernel
     };
 
-    println!("Kernel Phys: 0x{:X}", kernel.as_ptr() as usize);
     let page_phys = paging::paging_create(kernel.as_ptr() as usize)
         .expect("Failed to set up paging");
 
@@ -183,23 +185,7 @@ pub unsafe extern "C" fn kstart(
         panic!("Failed to allocate memory for stack");
     }
 
-    let args = KernelArgs {
-        kernel_base: kernel.as_ptr() as u64,
-        kernel_size: kernel.len() as u64,
-        stack_base: stack_base as u64,
-        stack_size: stack_size as u64,
-        env_base: 0,
-        env_size: 0,
-        acpi_rsdps_base: 0,
-        acpi_rsdps_size: 0,
-    };
-
-    kernel_entry(
-        page_phys,
-        args.stack_base + args.stack_size + PHYS_OFFSET,
-        *(kernel.as_ptr().add(0x18) as *const u64),
-        &args,
-    );
+    let mut env = String::with_capacity(4096);
 
     let mut modes = Vec::new();
     {
@@ -269,6 +255,7 @@ pub unsafe extern "C" fn kstart(
     // Sort modes by pixel area, reversed
     modes.sort_by(|a, b| (b.1 * b.2).cmp(&(a.1 * a.2)));
 
+    println!();
     println!("Arrow keys and enter select mode");
 
     //TODO 0x4F03 VBE function to get current mode
@@ -362,8 +349,44 @@ pub unsafe extern "C" fn kstart(
                 data.eax = 0x4F02;
                 data.ebx = selected as u32;
                 data.with(thunk10);
+                break;
             },
             _ => (),
         }
     }
+
+    if let Some(mode_i) = modes.iter().position(|x| x.0 == selected) {
+        if let Some((mode, w, h, ptr, text)) = modes.get(mode_i) {
+            env.push_str(&format!("FRAMEBUFFER_ADDR={:016x}\n", ptr));
+            env.push_str(&format!("FRAMEBUFFER_WIDTH={:016x}\n", w));
+            env.push_str(&format!("FRAMEBUFFER_HEIGHT={:016x}\n", h));
+        }
+    }
+    env.push_str(&format!("REDOXFS_BLOCK={:016x}\n", fs.block));
+    env.push_str("REDOXFS_UUID=");
+    for i in 0..fs.header.1.uuid.len() {
+        if i == 4 || i == 6 || i == 8 || i == 10 {
+            env.push('-');
+        }
+
+        env.push_str(&format!("{:>02x}", fs.header.1.uuid[i]));
+    }
+
+    let args = KernelArgs {
+        kernel_base: kernel.as_ptr() as u64,
+        kernel_size: kernel.len() as u64,
+        stack_base: stack_base as u64,
+        stack_size: stack_size as u64,
+        env_base: env.as_ptr() as u64,
+        env_size: env.len() as u64,
+        acpi_rsdps_base: 0,
+        acpi_rsdps_size: 0,
+    };
+
+    kernel_entry(
+        page_phys,
+        args.stack_base + args.stack_size + PHYS_OFFSET,
+        *(kernel.as_ptr().add(0x18) as *const u64),
+        &args,
+    );
 }

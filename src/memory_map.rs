@@ -26,8 +26,6 @@ pub unsafe fn memory_map(thunk15: extern "C" fn()) -> Option<(usize, usize)> {
         assert_eq!(data.ecx, mem::size_of::<MemoryMapEntry>() as u32);
         let entry = ptr::read(crate::MEMORY_MAP_ADDR as *const MemoryMapEntry);
 
-        println!("MEM {}: 0x{:016X} 0x{:016X} 0x{:08X}", index, entry.base, entry.length, entry.kind);
-
         //TODO: There is a problem with QEMU crashing if we write at about 8 MiB, so skip to 16
         let heap_start = 16 * 1024 * 1024;
         if (
