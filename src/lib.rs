@@ -125,15 +125,6 @@ pub unsafe extern "C" fn kstart(
     println!("HEAP: {:X}:{:X}", heap_start, heap_size);
     ALLOCATOR.lock().init(heap_start, heap_size);
 
-
-    let stack_size = 0x20000;
-    let stack_base = ALLOCATOR.alloc_zeroed(
-        Layout::from_size_align(stack_size, 4096).unwrap()
-    );
-    if stack_base.is_null() {
-        panic!("Failed to allocate memory for stack");
-    }
-
     // Locate kernel on RedoxFS
     let kernel = {
         //TODO: ensure boot_disk is 8-bit
@@ -181,6 +172,16 @@ pub unsafe extern "C" fn kstart(
     println!("Kernel Phys: 0x{:X}", kernel.as_ptr() as usize);
     let page_phys = paging::paging_create(kernel.as_ptr() as usize)
         .expect("Failed to set up paging");
+
+    //TODO: properly reserve page table allocations so kernel does not re-use them
+
+    let stack_size = 0x20000;
+    let stack_base = ALLOCATOR.alloc_zeroed(
+        Layout::from_size_align(stack_size, 4096).unwrap()
+    );
+    if stack_base.is_null() {
+        panic!("Failed to allocate memory for stack");
+    }
 
     let args = KernelArgs {
         kernel_base: kernel.as_ptr() as u64,
