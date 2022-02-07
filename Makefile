@@ -1,58 +1,63 @@
-ARCH=x86
-TARGET=$(ARCH)-unknown-none
+TARGET?=x86-unknown-none
 
-export LD=ld -m elf_i386
-export OBJCOPY=objcopy
-export PARTED=parted
-export QEMU=qemu-system-x86_64
+ifeq ($(TARGET),x86-unknown-none)
+	export LD=ld -m elf_i386
+	export OBJCOPY=objcopy
+	export PARTED=parted
+	export QEMU=qemu-system-x86_64
+else
+	$(error target $(TARGET) not supported by bootloader yet)
+endif
+
+BUILD=build/$(TARGET)
 export RUST_TARGET_PATH=$(CURDIR)/targets
 
-all: build/bootloader.bin
+all: $(BUILD)/bootloader.bin
 
 clean:
 	rm -rf build
 
-build/libbootloader.a: Cargo.lock Cargo.toml src/**
-	mkdir -p build
+$(BUILD)/libbootloader.a: Cargo.lock Cargo.toml src/**
+	mkdir -p $(BUILD)
 	cargo rustc --lib --target $(TARGET) --release -- -C soft-float -C debuginfo=2 --emit link=$@
 
-build/bootloader.elf: linkers/$(ARCH).ld build/libbootloader.a
-	mkdir -p build
-	$(LD) --gc-sections -z max-page-size=0x1000 -T $< -o $@ build/libbootloader.a && \
+$(BUILD)/bootloader.elf: linkers/$(TARGET).ld $(BUILD)/libbootloader.a
+	mkdir -p $(BUILD)
+	$(LD) --gc-sections -z max-page-size=0x1000 -T $< -o $@ $(BUILD)/libbootloader.a && \
 	$(OBJCOPY) --only-keep-debug $@ $@.sym && \
 	$(OBJCOPY) --strip-debug $@
 
-build/bootloader.bin: build/bootloader.elf $(ARCH)/**
-	mkdir -p build
-	nasm -f bin -o $@ -l $@.lst -D STAGE3=$< -i$(ARCH) $(ARCH)/bootloader.asm
+$(BUILD)/bootloader.bin: $(BUILD)/bootloader.elf asm/$(TARGET)/**
+	mkdir -p $(BUILD)
+	nasm -f bin -o $@ -l $@.lst -D STAGE3=$< -iasm/$(TARGET) asm/$(TARGET)/bootloader.asm
 
-build/filesystem:
-	mkdir -p build
+$(BUILD)/filesystem:
+	mkdir -p $(BUILD)
 	rm -f $@.partial
 	mkdir $@.partial
 	fallocate -l 1MiB $@.partial/kernel
 	mv $@.partial $@
 
 
-build/filesystem.bin: build/filesystem
-	mkdir -p build
+$(BUILD)/filesystem.bin: $(BUILD)/filesystem
+	mkdir -p $(BUILD)
 	rm -f $@.partial
 	fallocate -l 255MiB $@.partial
 	redoxfs-ar $@.partial $<
 	mv $@.partial $@
 
-build/harddrive.bin: build/bootloader.bin build/filesystem.bin
-	mkdir -p build
+$(BUILD)/harddrive.bin: $(BUILD)/bootloader.bin $(BUILD)/filesystem.bin
+	mkdir -p $(BUILD)
 	rm -f $@.partial
 	fallocate -l 256MiB $@.partial
 	$(PARTED) -s -a minimal $@.partial mklabel msdos
 	$(PARTED) -s -a minimal $@.partial mkpart primary 1MiB 100%
 	dd if=$< of=$@.partial bs=1 count=446 conv=notrunc
 	dd if=$< of=$@.partial bs=512 skip=1 seek=1 conv=notrunc
-	dd if=build/filesystem.bin of=$@.partial bs=1MiB seek=1 conv=notrunc
+	dd if=$(BUILD)/filesystem.bin of=$@.partial bs=1MiB seek=1 conv=notrunc
 	mv $@.partial $@
 
-qemu: build/harddrive.bin
+qemu: $(BUILD)/harddrive.bin
 	$(QEMU) \
 		-d cpu_reset \
 		-d guest_errors \
