@@ -2,7 +2,8 @@ ENTRY(kstart)
 OUTPUT_FORMAT(elf32-i386)
 
 SECTIONS {
-    . = 0x100000;
+    /* The start address must match bootloader.asm */
+    . = 0x9000;
 
     . += SIZEOF_HEADERS;
     . = ALIGN(4096);

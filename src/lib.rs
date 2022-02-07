@@ -8,22 +8,28 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use core::{
+    alloc::{GlobalAlloc, Layout},
     cmp,
     fmt::{self, Write},
     ptr,
     slice,
 };
 use linked_list_allocator::LockedHeap;
-use log::{error, info};
+use spin::Mutex;
 
 use self::disk::DiskBios;
 use self::logger::LOGGER;
+use self::memory_map::memory_map;
 use self::thunk::ThunkData;
 use self::vbe::{VbeCardInfo, VbeModeInfo};
 use self::vga::{VgaTextBlock, VgaTextColor, Vga};
 
+#[macro_use]
+mod macros;
+
 mod disk;
 mod logger;
+mod memory_map;
 mod paging;
 mod panic;
 mod thunk;
@@ -34,6 +40,7 @@ mod vga;
 // 0x500 to 0x7BFF is free
 const VBE_CARD_INFO_ADDR: usize = 0x500; // 512 bytes, ends at 0x6FF
 const VBE_MODE_INFO_ADDR: usize = 0x700; // 256 bytes, ends at 0x7FF
+const MEMORY_MAP_ADDR: usize = 0x800; // 24 bytes, ends at 0x817
 const DISK_ADDRESS_PACKET_ADDR: usize = 0x0FF0; // 16 bytes, ends at 0x0FFF
 const DISK_BIOS_ADDR: usize = 0x1000; // 4096 bytes, ends at 0x1FFF
 const THUNK_STACK_ADDR: usize = 0x7C00; // Grows downwards
@@ -42,7 +49,9 @@ const VGA_ADDR: usize = 0xB8000;
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-static mut VGA: Vga = unsafe { Vga::new(VGA_ADDR as *mut VgaTextBlock, 80, 25) };
+static VGA: Mutex<Vga> = Mutex::new(
+    unsafe { Vga::new(VGA_ADDR, 80, 25) }
+);
 
 static mut KERNEL_PHYS: u64 = 0;
 
@@ -71,59 +80,71 @@ pub unsafe extern "C" fn kstart(
 
     {
         // Clear VGA console
-        let blocks = VGA.blocks();
+        let mut vga = VGA.lock();
+        let blocks = vga.blocks();
         for i in 0..blocks.len() {
             blocks[i] = VgaTextBlock {
                 char: 0,
-                color: ((VGA.bg as u8) << 4) | (VGA.fg as u8),
+                color: ((vga.bg as u8) << 4) | (vga.fg as u8),
             };
         }
     }
 
-    // Initialize allocator at the end of stage 3 with a meager 1 MiB, which we can be pretty
-    // sure will be available.
-    extern "C" {
-        static mut __end: u8;
-    }
-    let heap_start = &__end as *const _ as usize;
-    let heap_size = 1024 * 1024;
-    ALLOCATOR.lock().init(heap_start, heap_size);
-
     // Set logger
     LOGGER.init();
 
-    // Locate RedoxFS
-    {
+    let (heap_start, heap_size) = memory_map(thunk15).expect("no memory for heap");
+
+    println!("HEAP: {:X}:{:X}", heap_start, heap_size);
+    ALLOCATOR.lock().init(heap_start, heap_size);
+
+    // Locate kernel on RedoxFS
+    let kernel = {
         //TODO: ensure boot_disk is 8-bit
-        info!("DISK {:02X}", boot_disk);
+        println!("BIOS Disk: {:02X}", boot_disk);
         let disk = DiskBios::new(boot_disk as u8, thunk13);
+
         //TODO: get block from partition table
         let block = 1024 * 1024 / redoxfs::BLOCK_SIZE;
-        match redoxfs::FileSystem::open(disk, Some(block)) {
-            Ok(mut fs) => {
-                info!("RedoxFS {} MiB", fs.header.1.size / 1024 / 1024);
+        let mut fs = redoxfs::FileSystem::open(disk, Some(block))
+            .expect("Failed to open RedoxFS");
 
-                match fs.find_node("kernel", fs.header.1.root) {
-                    Ok(node) => match fs.node_len(node.0) {
-                        Ok(len) => {
-                            info!("Kernel {} MiB", len / 1024 / 1024);
-                        },
-                        Err(err) => {
-                            error!("Failed to read kernel file length: {:?}", err);
-                        }
-                    },
-                    Err(err) => {
-                        error!("Failed to find kernel file: {:?}", err);
-                    }
-                }
-            },
-            Err(err) => {
-                error!("Failed to open RedoxFS: {:?}", err);
-            }
+        println!("RedoxFS Size: {} MiB", fs.header.1.size / 1024 / 1024);
+
+        let node = fs.find_node("kernel", fs.header.1.root)
+            .expect("failed to find kernel file");
+
+        let size = fs.node_len(node.0)
+            .expect("failed to read kernel size");
+
+        println!("Kernel Size: {} MiB", size / 1024 / 1024);
+
+        let ptr = ALLOCATOR.alloc_zeroed(
+            Layout::from_size_align(size as usize, 4096).unwrap()
+        );
+        if ptr.is_null() {
+            panic!("Failed to allocate memory for kernel");
         }
-    }
 
-    //let page_phys = paging::paging_create(KERNEL_PHYS);
+        let kernel = slice::from_raw_parts_mut(
+            ptr,
+            size as usize
+        );
+
+        let mut i = 0;
+        for chunk in kernel.chunks_mut(1024 * 1024) {
+            print!("\rKernel Loading: {}%", i * 100 / size);
+            i += fs.read_node(node.0, i, chunk, 0, 0)
+                .expect("Failed to read kernel file") as u64;
+        }
+        println!("\rKernel Loading: 100%");
+
+        kernel
+    };
+
+    println!("Kernel Phys: 0x{:X}", kernel.as_ptr() as u64);
+    let page_phys = paging::paging_create(kernel.as_ptr() as u64);
+    panic!("kernel entry not implemented");
 
     let mut modes = Vec::new();
     {
@@ -182,22 +203,22 @@ pub unsafe extern "C" fn kstart(
                         format!("{:>4}x{:<4} {:>3}:{:<3}", w, h, aspect_w, aspect_h)
                     ));
                 } else {
-                    error!("Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.eax);
+                    panic!("Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.eax);
                 }
             }
         } else {
-            error!("Failed to read VBE card info: 0x{:04X}", data.eax);
+            panic!("Failed to read VBE card info: 0x{:04X}", data.eax);
         }
     }
 
     // Sort modes by pixel area, reversed
     modes.sort_by(|a, b| (b.1 * b.2).cmp(&(a.1 * a.2)));
 
-    writeln!(VGA, "Arrow keys and enter select mode").unwrap();
+    println!("Arrow keys and enter select mode");
 
     //TODO 0x4F03 VBE function to get current mode
-    let off_x = VGA.x;
-    let off_y = VGA.y;
+    let off_x = VGA.lock().x;
+    let off_y = VGA.lock().y;
     let rows = 12;
     let mut selected = modes.get(0).map_or(0, |x| x.0);
     loop {
@@ -209,18 +230,18 @@ pub unsafe extern "C" fn kstart(
                 row = 0;
             }
 
-            VGA.x = off_x + col * 20;
-            VGA.y = off_y + row;
+            VGA.lock().x = off_x + col * 20;
+            VGA.lock().y = off_y + row;
 
             if *mode == selected {
-                VGA.bg = VgaTextColor::White;
-                VGA.fg = VgaTextColor::Black;
+                VGA.lock().bg = VgaTextColor::White;
+                VGA.lock().fg = VgaTextColor::Black;
             } else {
-                VGA.bg = VgaTextColor::DarkGray;
-                VGA.fg = VgaTextColor::White;
+                VGA.lock().bg = VgaTextColor::DarkGray;
+                VGA.lock().fg = VgaTextColor::White;
             }
 
-            write!(VGA, "{}", text).unwrap();
+            print!("{}", text);
 
             row += 1;
         }

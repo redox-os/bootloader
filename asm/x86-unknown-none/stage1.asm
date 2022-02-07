@@ -28,11 +28,10 @@ stage1: ; dl comes with disk
 
     mov eax, (stage2 - stage1) / 512
     mov bx, stage2
-    mov cx, (stage2.end - stage2) / 512
-    xor dx, dx
+    mov cx, (stage3.end - stage2) / 512
+    mov dx, 0
     call load
 
-    call print_line
     mov si, finished
     call print
     call print_line
@@ -79,9 +78,6 @@ load:
     ret
 
 print_dapack:
-    mov al, 13
-    call print_char
-
     mov bx, [DAPACK.addr + 2]
     call print_hex
 
@@ -105,6 +101,8 @@ print_dapack:
 
     mov bx, [DAPACK.buf]
     call print_hex
+
+    call print_line
 
     ret
 

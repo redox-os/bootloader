@@ -1,6 +1,7 @@
 //! Intrinsics for panic handling
 
 use core::alloc::Layout;
+use core::fmt::Write;
 use core::panic::PanicInfo;
 
 #[lang = "eh_personality"]
@@ -11,9 +12,9 @@ pub extern "C" fn rust_eh_personality() {}
 #[panic_handler]
 #[no_mangle]
 pub extern "C" fn rust_begin_unwind(info: &PanicInfo) -> ! {
-    log::error!("BOOTLOADER PANIC: {}", info);
-    loop {
-        unsafe {
+    unsafe {
+        let _ = writeln!(crate::VGA.lock(), "BOOTLOADER PANIC:\n{}", info);
+        loop {
             llvm_asm!("hlt" : : : : "intel", "volatile");
         }
     }

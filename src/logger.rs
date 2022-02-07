@@ -1,8 +1,6 @@
 use core::fmt::Write;
 use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
 
-use crate::VGA;
-
 pub static LOGGER: Logger = Logger;
 
 pub struct Logger;
@@ -21,9 +19,7 @@ impl Log for Logger {
 
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            unsafe {
-                writeln!(VGA, "{} - {}", record.level(), record.args()).unwrap();
-            }
+            println!("{} - {}", record.level(), record.args());
         }
     }
 

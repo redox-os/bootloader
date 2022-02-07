@@ -29,7 +29,7 @@ pub enum VgaTextColor {
 }
 
 pub struct Vga {
-    pub ptr: *mut VgaTextBlock,
+    pub base: usize,
     pub width: usize,
     pub height: usize,
     pub x: usize,
@@ -39,9 +39,9 @@ pub struct Vga {
 }
 
 impl Vga {
-    pub const unsafe fn new(ptr: *mut VgaTextBlock, width: usize, height: usize) -> Self {
+    pub const unsafe fn new(base: usize, width: usize, height: usize) -> Self {
         Self {
-            ptr,
+            base,
             width,
             height,
             x: 0,
@@ -53,7 +53,7 @@ impl Vga {
 
     pub unsafe fn blocks(&mut self) -> &'static mut [VgaTextBlock] {
         slice::from_raw_parts_mut(
-            self.ptr,
+            self.base as *mut VgaTextBlock,
             self.width * self.height,
         )
     }

@@ -3,7 +3,7 @@ USE16
 
 cpuid_required_features:
     .edx equ cpuid_edx.fpu | cpuid_edx.sse | cpuid_edx.pae | cpuid_edx.pse | cpuid_edx.pge | cpuid_edx.fxsr
-    .ecx equ cpuid_ecx.xsave
+    .ecx equ 0
 
 cpuid_check:
     mov eax, 1
@@ -20,11 +20,35 @@ cpuid_check:
     ret
 
 .error:
-    push edx
     push ecx
+    push edx
 
     mov si, .msg_features
     call print
+
+    mov si, .msg_line
+    call print
+
+    mov si, .msg_edx
+    call print
+
+    pop ebx
+    push ebx
+    shr ebx, 16
+    call print_hex
+
+    pop ebx
+    call print_hex
+
+    mov si, .msg_must_contain
+    call print
+
+    mov ebx, cpuid_required_features.edx
+    shr ebx, 16
+    call print_hex
+
+    mov ebx, cpuid_required_features.edx
+    call print_hex
 
     mov si, .msg_line
     call print
@@ -53,30 +77,6 @@ cpuid_check:
     mov si, .msg_line
     call print
 
-    mov si, .msg_edx
-    call print
-
-    pop ebx
-    push ebx
-    rol ebx, 16
-    call print_hex
-
-    pop ebx
-    call print_hex
-
-    mov si, .msg_must_contain
-    call print
-
-    mov ebx, cpuid_required_features.edx
-    shr ebx, 16
-    call print_hex
-
-    mov ebx, cpuid_required_features.edx
-    call print_hex
-
-    mov si, .msg_line
-    call print
-
 .halt:
     cli
     hlt
@@ -84,8 +84,8 @@ cpuid_check:
 
 .msg_features: db "Required CPU features are not present",0
 .msg_line: db 13,10,0
-.msg_ecx: db "ECX ",0
 .msg_edx: db "EDX ",0
+.msg_ecx: db "ECX ",0
 .msg_must_contain: db " must contain ",0
 
 cpuid_edx:
