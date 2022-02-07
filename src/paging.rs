@@ -15,7 +15,7 @@ unsafe fn paging_allocate() -> Option<&'static mut [u64]> {
     }
 }
 
-pub unsafe fn paging_create(kernel_phys: u64) -> Option<u64> {
+pub unsafe fn paging_create(kernel_phys: usize) -> Option<usize> {
     // Create PML4
     let pml4 = paging_allocate()?;
 
@@ -67,12 +67,12 @@ pub unsafe fn paging_create(kernel_phys: u64) -> Option<u64> {
                         pdp_i as u64 * 0x4000_0000 +
                         pd_i as u64 * 0x20_0000 +
                         pt_i as u64 * 0x1000 +
-                        kernel_phys;
+                        kernel_phys as u64;
                     pt[pt_i] = addr | 1 << 1 | 1;
                 }
             }
         }
     }
 
-    Some(pml4.as_ptr() as u64)
+    Some(pml4.as_ptr() as usize)
 }

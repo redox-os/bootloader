@@ -9,16 +9,12 @@ long_mode:
     ; disable interrupts
     cli
 
-    ;disable paging
+    ; disable paging
     mov eax, cr0
     and eax, 0x7FFFFFFF
     mov cr0, eax
 
-    ;cr3 holds pointer to PML4
-    mov eax, [.page_table]
-    mov cr3, eax
-
-    ;enable OSXSAVE, FXSAVE/FXRSTOR, Page Global, Page Address Extension, and Page Size Extension
+    ; enable OSXSAVE, FXSAVE/FXRSTOR, Page Global, Page Address Extension, and Page Size Extension
     mov eax, cr4
     or eax, 1 << 18 | 1 << 9 | 1 << 7 | 1 << 5 | 1 << 4
     mov cr4, eax
@@ -31,6 +27,10 @@ long_mode:
     rdmsr
     or eax, 1 << 11 | 1 << 8          ; Set the Long-Mode-Enable and NXE bit.
     wrmsr
+
+    ; set page table
+    mov eax, [.page_table]
+    mov cr3, eax
 
     ; enabling paging and protection simultaneously
     mov eax, cr0

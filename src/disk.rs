@@ -44,7 +44,7 @@ impl Disk for DiskBios {
     fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> Result<usize> {
         for (i, chunk) in buffer.chunks_mut(BLOCK_SIZE as usize).enumerate() {
             unsafe {
-                let mut dap = DiskAddressPacket::from_block(block);
+                let mut dap = DiskAddressPacket::from_block(block + i as u64);
                 ptr::write(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket, dap);
 
                 let mut data = ThunkData::new();

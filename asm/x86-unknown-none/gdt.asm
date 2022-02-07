@@ -58,7 +58,7 @@ gdt_flag:
 
 gdtr:
     dw gdt.end + 1  ; size
-    dd gdt          ; offset
+    dq gdt          ; offset
 
 gdt:
 .null equ $ - gdt

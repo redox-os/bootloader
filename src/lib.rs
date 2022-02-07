@@ -46,6 +46,8 @@ const DISK_BIOS_ADDR: usize = 0x1000; // 4096 bytes, ends at 0x1FFF
 const THUNK_STACK_ADDR: usize = 0x7C00; // Grows downwards
 const VGA_ADDR: usize = 0xB8000;
 
+const PHYS_OFFSET: u64 = 0xFFFF800000000000;
+
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
@@ -53,10 +55,35 @@ static VGA: Mutex<Vga> = Mutex::new(
     unsafe { Vga::new(VGA_ADDR, 80, 25) }
 );
 
-static mut KERNEL_PHYS: u64 = 0;
+#[repr(packed)]
+pub struct KernelArgs {
+    kernel_base: u64,
+    kernel_size: u64,
+    stack_base: u64,
+    stack_size: u64,
+    env_base: u64,
+    env_size: u64,
+
+    /// The base 64-bit pointer to an array of saved RSDPs. It's up to the kernel (and possibly
+    /// userspace), to decide which RSDP to use. The buffer will be a linked list containing a
+    /// 32-bit relative (to this field) next, and the actual struct afterwards.
+    ///
+    /// This field can be NULL, and if so, the system has not booted with UEFI or in some other way
+    /// retrieved the RSDPs. The kernel or a userspace driver will thus try searching the BIOS
+    /// memory instead. On UEFI systems, searching is not guaranteed to actually work though.
+    acpi_rsdps_base: u64,
+    /// The size of the RSDPs region.
+    acpi_rsdps_size: u64,
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn kstart(
+    kernel_entry: extern "C" fn(
+        page_table: usize,
+        stack: u64,
+        func: u64,
+        args: *const KernelArgs,
+    ) -> !,
     boot_disk: usize,
     thunk10: extern "C" fn(),
     thunk13: extern "C" fn(),
@@ -97,6 +124,15 @@ pub unsafe extern "C" fn kstart(
 
     println!("HEAP: {:X}:{:X}", heap_start, heap_size);
     ALLOCATOR.lock().init(heap_start, heap_size);
+
+
+    let stack_size = 0x20000;
+    let stack_base = ALLOCATOR.alloc_zeroed(
+        Layout::from_size_align(stack_size, 4096).unwrap()
+    );
+    if stack_base.is_null() {
+        panic!("Failed to allocate memory for stack");
+    }
 
     // Locate kernel on RedoxFS
     let kernel = {
@@ -142,9 +178,27 @@ pub unsafe extern "C" fn kstart(
         kernel
     };
 
-    println!("Kernel Phys: 0x{:X}", kernel.as_ptr() as u64);
-    let page_phys = paging::paging_create(kernel.as_ptr() as u64);
-    panic!("kernel entry not implemented");
+    println!("Kernel Phys: 0x{:X}", kernel.as_ptr() as usize);
+    let page_phys = paging::paging_create(kernel.as_ptr() as usize)
+        .expect("Failed to set up paging");
+
+    let args = KernelArgs {
+        kernel_base: kernel.as_ptr() as u64,
+        kernel_size: kernel.len() as u64,
+        stack_base: stack_base as u64,
+        stack_size: stack_size as u64,
+        env_base: 0,
+        env_size: 0,
+        acpi_rsdps_base: 0,
+        acpi_rsdps_size: 0,
+    };
+
+    kernel_entry(
+        page_phys,
+        args.stack_base + args.stack_size + PHYS_OFFSET,
+        *(kernel.as_ptr().add(0x18) as *const u64),
+        &args,
+    );
 
     let mut modes = Vec::new();
     {
