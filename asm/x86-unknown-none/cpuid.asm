@@ -1,4 +1,94 @@
-features_edx:
+SECTION .text
+USE16
+
+cpuid_required_features:
+    .edx equ cpuid_edx.fpu | cpuid_edx.sse | cpuid_edx.pae | cpuid_edx.pse | cpuid_edx.pge | cpuid_edx.fxsr
+    .ecx equ cpuid_ecx.xsave
+
+cpuid_check:
+    mov eax, 1
+    cpuid
+
+    and edx, cpuid_required_features.edx
+    cmp edx, cpuid_required_features.edx
+    jne .error
+
+    and ecx, cpuid_required_features.ecx
+    cmp ecx, cpuid_required_features.ecx
+    jne .error
+
+    ret
+
+.error:
+    push edx
+    push ecx
+
+    mov si, .msg_features
+    call print
+
+    mov si, .msg_line
+    call print
+
+    mov si, .msg_ecx
+    call print
+
+    pop ebx
+    push ebx
+    shr ebx, 16
+    call print_hex
+
+    pop ebx
+    call print_hex
+
+    mov si, .msg_must_contain
+    call print
+
+    mov ebx, cpuid_required_features.ecx
+    shr ebx, 16
+    call print_hex
+
+    mov ebx, cpuid_required_features.ecx
+    call print_hex
+
+    mov si, .msg_line
+    call print
+
+    mov si, .msg_edx
+    call print
+
+    pop ebx
+    push ebx
+    rol ebx, 16
+    call print_hex
+
+    pop ebx
+    call print_hex
+
+    mov si, .msg_must_contain
+    call print
+
+    mov ebx, cpuid_required_features.edx
+    shr ebx, 16
+    call print_hex
+
+    mov ebx, cpuid_required_features.edx
+    call print_hex
+
+    mov si, .msg_line
+    call print
+
+.halt:
+    cli
+    hlt
+    jmp .halt
+
+.msg_features: db "Required CPU features are not present",0
+.msg_line: db 13,10,0
+.msg_ecx: db "ECX ",0
+.msg_edx: db "EDX ",0
+.msg_must_contain: db " must contain ",0
+
+cpuid_edx:
     .fpu                 equ 1 << 0
     .vme                 equ 1 << 1
     .de                  equ 1 << 2
@@ -30,7 +120,7 @@ features_edx:
     .ia64                equ 1 << 30
     .pbe                 equ 1 << 31
 
-features_ecx:
+cpuid_ecx:
     .sse3                equ 1 << 0
     .pclmulqdq           equ 1 << 1
     .dtes64              equ 1 << 2

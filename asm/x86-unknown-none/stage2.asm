@@ -2,6 +2,9 @@ SECTION .text
 USE16
 
 stage2.entry:
+    ; check for required features
+    call cpuid_check
+
     ; enable A20-Line via IO-Port 92, might not work on all motherboards
     in al, 0x92
     or al, 2
@@ -100,12 +103,13 @@ load_extent:
     call print_line
     ret
 
+%include "cpuid.asm"
 %include "gdt.asm"
+%include "long_mode.asm"
 %include "memory_map.asm"
+%include "protected_mode.asm"
 %include "thunk.asm"
 %include "unreal.asm"
-%include "protected_mode.asm"
-%include "long_mode.asm"
 
 USE32
 stage3.entry:
