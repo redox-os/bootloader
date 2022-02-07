@@ -5,7 +5,7 @@ USE16
 unreal:
     cli
 
-    lgdt [unreal_gdtr]
+    lgdt [gdtr]
 
     push es
     push ds
@@ -22,7 +22,7 @@ unreal:
 ; the switch back to real mode, these values are not modified, regardless of
 ; what value is in the 16-bit segment register. So the 64k limit is no longer
 ; valid and 32-bit offsets can be used with the real-mode addressing rules
-    mov bx, unreal_gdt.data
+    mov bx, gdt.pm32_data
     mov es, bx
     mov ds, bx
 
@@ -33,22 +33,3 @@ unreal:
     pop es
     sti
     ret
-
-
-unreal_gdtr:
-    dw unreal_gdt.end + 1  ; size
-    dd unreal_gdt          ; offset
-
-unreal_gdt:
-.null equ $ - unreal_gdt
-    dq 0
-.data equ $ - unreal_gdt
-    istruc GDTEntry
-        at GDTEntry.limitl,        dw 0xFFFF
-        at GDTEntry.basel,         dw 0x0
-        at GDTEntry.basem,         db 0x0
-        at GDTEntry.attribute,        db attrib.present | attrib.user | attrib.writable
-        at GDTEntry.flags__limith, db 0xF | flags.granularity | flags.default_operand_size
-        at GDTEntry.baseh,         db 0x0
-    iend
-.end equ $ - unreal_gdt

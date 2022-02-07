@@ -20,16 +20,8 @@ stage2.entry:
     shr ecx, 9
     call load_extent
 
-    ; load protected mode GDT and IDT
-    cli
-    lgdt [gdtr]
-    ; set protected mode bit of cr0
-    mov eax, cr0
-    or eax, 1
-    mov cr0, eax
-
-    ; far jump to load CS with 32 bit segment
-    jmp gdt.pm32_code:protected_mode
+    mov dword [protected_mode.func], stage3.entry
+    jmp protected_mode.entry
 
 args:
     .stage3_base dq 0x100000
@@ -108,22 +100,15 @@ load_extent:
     call print_line
     ret
 
-%include "descriptor_flags.inc"
-%include "gdt_entry.inc"
+%include "gdt.asm"
 %include "memory_map.asm"
 %include "thunk.asm"
 %include "unreal.asm"
+%include "protected_mode.asm"
+%include "long_mode.asm"
 
 USE32
-protected_mode:
-    ; load all the other segments with 32 bit data segments
-    mov eax, gdt.pm32_data
-    mov ds, eax
-    mov es, eax
-    mov fs, eax
-    mov gs, eax
-    mov ss, eax
-
+stage3.entry:
     mov esp, 0x800000 - 128
 
     ; entry point
@@ -144,53 +129,3 @@ protected_mode:
     cli
     hlt
     jmp .halt
-
-gdtr:
-    dw gdt.end + 1  ; size
-    dd gdt          ; offset
-
-gdt:
-.null equ $ - gdt
-    dq 0
-
-.pm32_code equ $ - gdt
-    istruc GDTEntry
-        at GDTEntry.limitl, dw 0xFFFF
-        at GDTEntry.basel, dw 0
-        at GDTEntry.basem, db 0
-        at GDTEntry.attribute, db attrib.present | attrib.user | attrib.code | attrib.readable
-        at GDTEntry.flags__limith, db 0xF | flags.granularity | flags.default_operand_size
-        at GDTEntry.baseh, db 0
-    iend
-
-.pm32_data equ $ - gdt
-    istruc GDTEntry
-        at GDTEntry.limitl, dw 0xFFFF
-        at GDTEntry.basel, dw 0
-        at GDTEntry.basem, db 0
-        at GDTEntry.attribute, db attrib.present | attrib.user | attrib.writable
-        at GDTEntry.flags__limith, db 0xF | flags.granularity | flags.default_operand_size
-        at GDTEntry.baseh, db 0
-    iend
-
-.pm16_code equ $ - gdt
-    istruc GDTEntry
-        at GDTEntry.limitl, dw 0xFFFF
-        at GDTEntry.basel, dw 0
-        at GDTEntry.basem, db 0
-        at GDTEntry.attribute, db attrib.present | attrib.user | attrib.code | attrib.readable
-        at GDTEntry.flags__limith, db 0xF
-        at GDTEntry.baseh, db 0
-    iend
-
-.pm16_data equ $ - gdt
-    istruc GDTEntry
-        at GDTEntry.limitl, dw 0xFFFF
-        at GDTEntry.basel, dw 0
-        at GDTEntry.basem, db 0
-        at GDTEntry.attribute, db attrib.present | attrib.user | attrib.writable
-        at GDTEntry.flags__limith, db 0xF
-        at GDTEntry.baseh, db 0
-    iend
-
-.end equ $ - gdt

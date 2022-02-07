@@ -1,18 +1,22 @@
 TARGET?=x86-unknown-none
-
-ifeq ($(TARGET),x86-unknown-none)
-	export LD=ld -m elf_i386
-	export OBJCOPY=objcopy
-	export PARTED=parted
-	export QEMU=qemu-system-x86_64
-else
-	$(error target $(TARGET) not supported by bootloader yet)
-endif
-
 BUILD=build/$(TARGET)
 export RUST_TARGET_PATH=$(CURDIR)/targets
 
+ifeq ($(TARGET),x86-unknown-none)
+
+export LD=ld -m elf_i386
+export OBJCOPY=objcopy
+export PARTED=parted
+export QEMU=qemu-system-x86_64
+
 all: $(BUILD)/bootloader.bin
+
+else
+
+all:
+	$(error target $(TARGET) not supported by bootloader yet)
+
+endif
 
 clean:
 	rm -rf build
@@ -61,6 +65,7 @@ qemu: $(BUILD)/harddrive.bin
 	$(QEMU) \
 		-d cpu_reset \
 		-d guest_errors \
+		-no-reboot \
 		-smp 4 -m 2048 \
 		-chardev stdio,id=debug,signal=off,mux=on \
 		-serial chardev:debug \

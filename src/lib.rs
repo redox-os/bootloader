@@ -24,6 +24,7 @@ use self::vga::{VgaTextBlock, VgaTextColor, Vga};
 
 mod disk;
 mod logger;
+mod paging;
 mod panic;
 mod thunk;
 mod vbe;
@@ -42,6 +43,8 @@ const VGA_ADDR: usize = 0xB8000;
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
 static mut VGA: Vga = unsafe { Vga::new(VGA_ADDR as *mut VgaTextBlock, 80, 25) };
+
+static mut KERNEL_PHYS: u64 = 0;
 
 #[no_mangle]
 pub unsafe extern "C" fn kstart(
@@ -77,7 +80,8 @@ pub unsafe extern "C" fn kstart(
         }
     }
 
-    // Initialize allocator at the end of stage 3 with a meager 1 MiB
+    // Initialize allocator at the end of stage 3 with a meager 1 MiB, which we can be pretty
+    // sure will be available.
     extern "C" {
         static mut __end: u8;
     }
@@ -118,6 +122,8 @@ pub unsafe extern "C" fn kstart(
             }
         }
     }
+
+    //let page_phys = paging::paging_create(KERNEL_PHYS);
 
     let mut modes = Vec::new();
     {

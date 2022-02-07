@@ -11,7 +11,7 @@ pub extern "C" fn rust_eh_personality() {}
 #[panic_handler]
 #[no_mangle]
 pub extern "C" fn rust_begin_unwind(info: &PanicInfo) -> ! {
-    //println!("BOOTLOADER PANIC: {}", info);
+    log::error!("BOOTLOADER PANIC: {}", info);
     loop {
         unsafe {
             llvm_asm!("hlt" : : : : "intel", "volatile");
@@ -23,7 +23,7 @@ pub extern "C" fn rust_begin_unwind(info: &PanicInfo) -> ! {
 #[no_mangle]
 #[allow(improper_ctypes_definitions)] // Layout is not repr(C)
 pub extern fn rust_oom(_layout: Layout) -> ! {
-    panic!("kernel memory allocation failed");
+    panic!("memory allocation failed");
 }
 
 #[allow(non_snake_case)]

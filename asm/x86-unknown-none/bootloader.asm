@@ -8,7 +8,7 @@ stage2:
 stage2.end:
 
 stage3:
-  %defstr STAGE3_STR %[STAGE3]
-  incbin STAGE3_STR
-align 512, db 0
+    %defstr STAGE3_STR %[STAGE3]
+    incbin STAGE3_STR
+    align 512, db 0
 .end:

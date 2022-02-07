@@ -1,4 +1,6 @@
+SECTION .text
 USE32
+
 thunk:
 .int10:
     mov dword [.func], .int10_real
@@ -55,6 +57,7 @@ thunk:
     ret
 
 USE16
+
 .int10_real:
     int 0x10
     ret
