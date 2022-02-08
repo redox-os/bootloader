@@ -32,6 +32,9 @@ thunk:
     ; save esp
     mov [.esp], esp
 
+    ; load gdt
+    lgdt [gdtr]
+
     ; far jump to protected mode 16-bit
     jmp gdt.pm16_code:.pm16
 
@@ -120,6 +123,9 @@ USE16
 
     ; save registers
     pushad
+
+    ; load gdt (BIOS sometimes overwrites this)
+    lgdt [gdtr]
 
     ; restore cr0, will enable protected mode
     mov eax, [.cr0]
