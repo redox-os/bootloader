@@ -119,6 +119,24 @@ pub unsafe extern "C" fn kstart(
 
     ALLOCATOR.lock().init(heap_start, heap_size);
 
+    // Locate kernel on RedoxFS
+    let disk = DiskBios::new(u8::try_from(boot_disk).unwrap(), thunk13);
+
+    //TODO: get block from partition table
+    let block = 1024 * 1024 / redoxfs::BLOCK_SIZE;
+    let mut fs = redoxfs::FileSystem::open(disk, Some(block))
+        .expect("Failed to open RedoxFS");
+
+    print!("RedoxFS ");
+    for i in 0..fs.header.1.uuid.len() {
+        if i == 4 || i == 6 || i == 8 || i == 10 {
+            print!("-");
+        }
+
+        print!("{:>02x}", fs.header.1.uuid[i]);
+    }
+    println!(": {} MiB", fs.header.1.size / 1024 / 1024);
+
     let mut modes = Vec::new();
     {
         // Get card info
@@ -188,7 +206,7 @@ pub unsafe extern "C" fn kstart(
     modes.sort_by(|a, b| (b.1 * b.2).cmp(&(a.1 * a.2)));
 
     println!();
-    println!(" Arrow keys and enter select mode");
+    println!("Arrow keys and enter select mode");
     println!();
     print!(" ");
 
@@ -285,31 +303,11 @@ pub unsafe extern "C" fn kstart(
         }
     }
 
-    // Clear screen
-    {
-        let mut vga = VGA.lock();
-        vga.bg = VgaTextColor::DarkGray;
-        vga.fg = VgaTextColor::White;
-        vga.clear();
-    }
-
-    // Locate kernel on RedoxFS
-    let disk = DiskBios::new(u8::try_from(boot_disk).unwrap(), thunk13);
-
-    //TODO: get block from partition table
-    let block = 1024 * 1024 / redoxfs::BLOCK_SIZE;
-    let mut fs = redoxfs::FileSystem::open(disk, Some(block))
-        .expect("Failed to open RedoxFS");
-
-    print!("RedoxFS ");
-    for i in 0..fs.header.1.uuid.len() {
-        if i == 4 || i == 6 || i == 8 || i == 10 {
-            print!("-");
-        }
-
-        print!("{:>02x}", fs.header.1.uuid[i]);
-    }
-    println!(": {} MiB", fs.header.1.size / 1024 / 1024);
+    VGA.lock().x = 0;
+    VGA.lock().y = off_y + rows;
+    VGA.lock().bg = VgaTextColor::DarkGray;
+    VGA.lock().fg = VgaTextColor::White;
+    println!();
 
     let kernel = {
         let node = fs.find_node("kernel", fs.header.1.root)
@@ -334,11 +332,11 @@ pub unsafe extern "C" fn kstart(
 
         let mut i = 0;
         for chunk in kernel.chunks_mut(1024 * 1024) {
-            print!("\rKernel: {}/{}", i / 1024 / 1024, size / 1024 / 1024);
+            print!("\rKernel: {}/{} MiB", i / 1024 / 1024, size / 1024 / 1024);
             i += fs.read_node(node.0, i, chunk, 0, 0)
                 .expect("Failed to read kernel file") as u64;
         }
-        println!("\rKernel: {}/{}", i / 1024 / 1024, size / 1024 / 1024);
+        println!("\rKernel: {}/{} MiB", i / 1024 / 1024, size / 1024 / 1024);
 
         kernel
     };
