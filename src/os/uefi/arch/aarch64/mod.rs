@@ -1,15 +1,21 @@
-use core::{mem, ptr};
+use alloc::{
+    string::String,
+    vec::Vec,
+};
+use core::{mem, ptr, slice};
 use orbclient::{Color, Renderer};
 use std::fs::find;
 use std::proto::Protocol;
 use uefi::guid::Guid;
+use uefi::memory::MemoryType;
 use uefi::status::{Error, Result};
 
-use crate::display::{Display, ScaledDisplay, Output};
-use crate::image::{self, Image};
-use crate::key::{key, Key};
-use crate::redoxfs;
-use crate::text::TextDisplay;
+use super::super::{
+    disk::DiskEfi,
+    display::{Display, ScaledDisplay, Output},
+    key::{key, Key},
+    text::TextDisplay,
+};
 
 use self::memory_map::memory_map;
 use self::paging::paging;
@@ -18,8 +24,7 @@ mod memory_map;
 mod paging;
 mod partitions;
 
-static KERNEL: &'static str = concat!("\\", env!("BASEDIR"), "\\kernel");
-static SPLASHBMP: &'static [u8] = include_bytes!("../../../res/splash.bmp");
+static KERNEL: &'static str = "\\redox_bootloader\\kernel";
 
 static KERNEL_OFFSET: u64 = 0xFFFF_FF00_0000_0000;
 
@@ -32,6 +37,22 @@ static mut DTB_PHYSICAL: u64 = 0;
 #[no_mangle]
 pub extern "C" fn __chkstk() {
     //TODO
+}
+
+unsafe fn allocate_zero_pages(pages: usize) -> Result<usize> {
+    let uefi = std::system_table();
+
+    let mut ptr = 0;
+    (uefi.BootServices.AllocatePages)(
+        0, // AllocateAnyPages
+        MemoryType::EfiRuntimeServicesData, // Keeps this memory out of free space list
+        pages,
+        &mut ptr
+    )?;
+
+    ptr::write_bytes(ptr as *mut u8, 0, 4096);
+
+    Ok(ptr)
 }
 
 unsafe fn exit_boot_services(key: usize) {
@@ -48,7 +69,7 @@ unsafe fn enter() -> ! {
     entry_fn(DTB_PHYSICAL);
 }
 
-fn get_correct_block_io() -> Result<redoxfs::Disk> {
+fn get_correct_block_io() -> Result<DiskEfi> {
     // Get all BlockIo handles.
     let mut handles = vec! [uefi::Handle(0); 128];
     let mut size = handles.len() * mem::size_of::<uefi::Handle>();
@@ -60,7 +81,7 @@ fn get_correct_block_io() -> Result<redoxfs::Disk> {
 
     // Return the handle that seems bootable.
     for handle in handles.into_iter().take(actual_size) {
-        let block_io = redoxfs::Disk::handle_protocol(handle)?;
+        let block_io = DiskEfi::handle_protocol(handle)?;
         if !block_io.0.Media.LogicalPartition {
             continue;
         }
@@ -105,9 +126,11 @@ fn find_dtb() -> Result<()> {
     Err(Error::NotFound)
 }
 
-fn redoxfs() -> Result<redoxfs::FileSystem> {
+fn redoxfs() -> Result<redoxfs::FileSystem<DiskEfi>> {
     // TODO: Scan multiple partitions for a kernel.
-    redoxfs::FileSystem::open(get_correct_block_io()?)
+    // TODO: pass block_opt for performance reasons
+    redoxfs::FileSystem::open(get_correct_block_io()?, None)
+        .map_err(|_| Error::DeviceError)
 }
 
 const MB: usize = 1024 * 1024;
@@ -115,28 +138,91 @@ const MB: usize = 1024 * 1024;
 fn inner() -> Result<()> {
     find_dtb()?;
 
+    //TODO: detect page size?
+    let page_size = 4096;
+
     {
+        let mut env = String::new();
+        if let Ok(output) = Output::one() {
+            let mode = &output.0.Mode;
+            env.push_str(&format!("FRAMEBUFFER_ADDR={:016x}\n", mode.FrameBufferBase));
+            env.push_str(&format!("FRAMEBUFFER_WIDTH={:016x}\n", mode.Info.HorizontalResolution));
+            env.push_str(&format!("FRAMEBUFFER_HEIGHT={:016x}\n", mode.Info.VerticalResolution));
+        }
+
         println!("Loading Kernel...");
-        let (kernel, mut env): (Vec<u8>, String) = {
-            let (_i, mut kernel_file) = find(KERNEL)?;
+        let kernel = if let Ok((_i, mut kernel_file)) = find("\\redox_bootloader\\kernel") {
             let info = kernel_file.info()?;
             let len = info.FileSize;
-            let mut kernel = Vec::with_capacity(len as usize);
-            let mut buf = vec![0; 4 * MB];
-            loop {
-                let percent = kernel.len() as u64 * 100 / len;
-                print!("\r{}% - {} MB", percent, kernel.len() / MB);
 
-                let count = kernel_file.read(&mut buf)?;
+            let kernel = unsafe {
+                let ptr = allocate_zero_pages((len as usize + page_size - 1) / page_size)?;
+                slice::from_raw_parts_mut(
+                    ptr as *mut u8,
+                    len as usize
+                )
+            };
+
+            let mut i = 0;
+            for mut chunk in kernel.chunks_mut(4 * MB) {
+                print!("\r{}% - {} MB", i as u64 * 100 / len, i / MB);
+
+                let count = kernel_file.read(&mut chunk)?;
                 if count == 0 {
                     break;
                 }
+                //TODO: return error instead of assert
+                assert_eq!(count, chunk.len());
 
-                kernel.extend(&buf[.. count]);
+                i += count;
             }
-            println!("");
+            println!("\r{}% - {} MB", i as u64 * 100 / len, i / MB);
 
-            (kernel, String::new())
+            kernel
+        } else {
+            let mut fs = redoxfs()?;
+
+            let root = fs.header.1.root;
+            let node = fs.find_node("kernel", root).map_err(|_| Error::DeviceError)?;
+
+            let len = fs.node_len(node.0).map_err(|_| Error::DeviceError)?;
+
+            let kernel = unsafe {
+                let ptr = allocate_zero_pages((len as usize + page_size - 1) / page_size)?;
+                println!("{:X}", ptr);
+
+                slice::from_raw_parts_mut(
+                    ptr as *mut u8,
+                    len as usize
+                )
+            };
+
+            let mut i = 0;
+            for mut chunk in kernel.chunks_mut(4 * MB) {
+                print!("\r{}% - {} MB", i as u64 * 100 / len, i / MB);
+
+                let count = fs.read_node(node.0, i as u64, &mut chunk, 0, 0).map_err(|_| Error::DeviceError)?;
+                if count == 0 {
+                    break;
+                }
+                //TODO: return error instead of assert
+                assert_eq!(count, chunk.len());
+
+                i += count;
+            }
+            println!("\r{}% - {} MB", i as u64 * 100 / len, i / MB);
+
+            env.push_str(&format!("REDOXFS_BLOCK={:016x}\n", fs.block));
+            env.push_str("REDOXFS_UUID=");
+            for i in 0..fs.header.1.uuid.len() {
+                if i == 4 || i == 6 || i == 8 || i == 10 {
+                    env.push('-');
+                }
+
+                env.push_str(&format!("{:>02x}", fs.header.1.uuid[i]));
+            }
+
+            kernel
         };
 
         println!("Copying Kernel...");
@@ -188,21 +274,15 @@ fn select_mode(output: &mut Output) -> Result<u32> {
     }
 }
 
-fn pretty_pipe<T, F: FnMut() -> Result<T>>(splash: &Image, f: F) -> Result<T> {
-    let mut display = Display::new(Output::one()?);
-
+fn pretty_pipe<T, F: FnMut() -> Result<T>>(f: F) -> Result<T> {
+    let mut output = Output::one()?;
+    let mut display = Display::new(&mut output);
     let mut display = ScaledDisplay::new(&mut display);
 
     {
         let bg = Color::rgb(0x4a, 0xa3, 0xfd);
 
         display.set(bg);
-
-        {
-            let x = (display.width() as i32 - splash.width() as i32)/2;
-            let y = 16;
-            splash.draw(&mut display, x, y);
-        }
 
         {
             let prompt = format!(
@@ -224,7 +304,7 @@ fn pretty_pipe<T, F: FnMut() -> Result<T>>(splash: &Image, f: F) -> Result<T> {
     {
         let cols = 80;
         let off_x = (display.width() as i32 - cols as i32 * 8)/2;
-        let off_y = 16 + splash.height() as i32 + 16;
+        let off_y = 16;
         let rows = (display.height() as i32 - 64 - off_y - 1) as usize/16;
         display.rect(off_x, off_y, cols as u32 * 8, rows as u32 * 16, Color::rgb(0, 0, 0));
         display.sync();

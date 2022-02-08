@@ -204,7 +204,8 @@ fn find_acpi_table_pointers() -> Result<()> {
 fn redoxfs() -> Result<redoxfs::FileSystem<DiskEfi>> {
     // TODO: Scan multiple partitions for a kernel.
     // TODO: pass block_opt for performance reasons
-    redoxfs::FileSystem::open(get_correct_block_io()?, None).map_err(|_| Error::DeviceError)
+    redoxfs::FileSystem::open(get_correct_block_io()?, None)
+        .map_err(|_| Error::DeviceError)
 }
 
 const MB: usize = 1024 * 1024;

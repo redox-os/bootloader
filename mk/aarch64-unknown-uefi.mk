@@ -1,5 +1,5 @@
 export PARTED?=parted
-export QEMU?=qemu-system-x86_64
+export QEMU?=qemu-system-aarch64
 
 all: $(BUILD)/bootloader.efi
 
@@ -22,7 +22,7 @@ $(BUILD)/esp.bin: $(BUILD)/bootloader.efi
 	mkfs.vfat -F 32 $@.partial
 	mmd -i $@.partial efi
 	mmd -i $@.partial efi/boot
-	mcopy -i $@.partial $< ::efi/boot/bootx64.efi
+	mcopy -i $@.partial $< ::efi/boot/bootaa64.efi
 	mv $@.partial $@
 
 $(BUILD)/harddrive.bin: $(BUILD)/esp.bin $(BUILD)/filesystem.bin
@@ -38,7 +38,7 @@ $(BUILD)/harddrive.bin: $(BUILD)/esp.bin $(BUILD)/filesystem.bin
 	mv $@.partial $@
 
 $(BUILD)/firmware.rom:
-	cp /usr/share/OVMF/OVMF_CODE.fd $@
+	wget https://releases.linaro.org/components/kernel/uefi-linaro/latest/release/qemu64/QEMU_EFI.fd -O $@
 
 qemu: $(BUILD)/harddrive.bin $(BUILD)/firmware.rom
 	$(QEMU) \
@@ -49,9 +49,8 @@ qemu: $(BUILD)/harddrive.bin $(BUILD)/firmware.rom
 		-chardev stdio,id=debug,signal=off,mux=on \
 		-serial chardev:debug \
 		-mon chardev=debug \
-		-machine q35 \
+		-machine virt \
 		-net none \
-		-enable-kvm \
-		-cpu host \
+		-cpu cortex-a57 \
 		-bios $(BUILD)/firmware.rom \
 		-drive file=$<,format=raw
