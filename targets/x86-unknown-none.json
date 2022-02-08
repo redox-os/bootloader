@@ -9,7 +9,6 @@
     "env": "",
     "vendor": "unknown",
     "linker-flavor": "gcc",
-    "target-family": "redox",
     "pre-link-args": {
         "gcc": ["-m32", "-nostdlib", "-static"]
     },
