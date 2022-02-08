@@ -22,7 +22,7 @@ use linked_list_allocator::LockedHeap;
 use log::error;
 use spin::Mutex;
 
-use self::disk::DiskBios;
+use self::os::DiskBios;
 use self::logger::LOGGER;
 use self::memory_map::memory_map;
 use self::thunk::ThunkData;
@@ -32,9 +32,9 @@ use self::vga::{VgaTextBlock, VgaTextColor, Vga};
 #[macro_use]
 mod macros;
 
-mod disk;
 mod logger;
 mod memory_map;
+mod os;
 mod paging;
 mod panic;
 mod thunk;
