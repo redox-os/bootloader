@@ -1,25 +1,22 @@
 use alloc::{
     string::String,
-    vec::Vec,
 };
 use core::{
     alloc::{GlobalAlloc, Layout},
-    cmp,
     convert::TryFrom,
-    ptr,
     slice,
 };
 use linked_list_allocator::LockedHeap;
-use log::error;
 use spin::Mutex;
 
-use crate::logger::LOGGER;
 use crate::arch::paging_create;
+use crate::logger::LOGGER;
+use crate::os::{Os, OsKey};
 
 use self::disk::DiskBios;
-use self::memory_map::memory_map;
+use self::memory_map::{memory_map, MemoryMapIter};
 use self::thunk::ThunkData;
-use self::vbe::{VbeCardInfo, VbeModeInfo};
+use self::vbe::VideoModeIter;
 use self::vga::{VgaTextColor, Vga};
 
 #[macro_use]
@@ -73,8 +70,80 @@ pub struct KernelArgs {
     acpi_rsdps_size: u64,
 }
 
+pub struct OsBios {
+    boot_disk: usize,
+    thunk10: extern "C" fn(),
+    thunk13: extern "C" fn(),
+    thunk15: extern "C" fn(),
+    thunk16: extern "C" fn(),
+}
+
+impl Os<
+    DiskBios,
+    MemoryMapIter,
+    VideoModeIter
+> for OsBios {
+    fn disk(&self) -> DiskBios {
+        DiskBios::new(u8::try_from(self.boot_disk).unwrap(), self.thunk13)
+    }
+
+    fn memory(&self) -> MemoryMapIter {
+        MemoryMapIter::new(self.thunk15)
+    }
+
+    fn video_modes(&self) -> VideoModeIter {
+        VideoModeIter::new(self.thunk10)
+    }
+
+    fn set_video_mode(&self, id: u32) {
+        // Set video mode
+        let mut data = ThunkData::new();
+        data.eax = 0x4F02;
+        data.ebx = id;
+        unsafe { data.with(self.thunk10); }
+        //TODO: check result
+    }
+
+    fn get_key(&self) -> OsKey {
+        // Read keypress
+        let mut data = ThunkData::new();
+        unsafe { data.with(self.thunk16); }
+        match (data.eax >> 8) as u8 {
+            0x4B => OsKey::Left,
+            0x4D => OsKey::Right,
+            0x48 => OsKey::Up,
+            0x50 => OsKey::Down,
+            0x1C => OsKey::Enter,
+            _ => OsKey::Other,
+        }
+    }
+
+    fn get_text_position(&self) -> (usize, usize) {
+        let vga = VGA.lock();
+        (vga.x, vga.y)
+    }
+
+    fn set_text_position(&self, x: usize, y: usize) {
+        //TODO: ensure this is inside bounds!
+        let mut vga = VGA.lock();
+        vga.x = x;
+        vga.y = y;
+    }
+
+    fn set_text_highlight(&self, highlight: bool) {
+        let mut vga = VGA.lock();
+        if highlight {
+            vga.bg = VgaTextColor::White;
+            vga.fg = VgaTextColor::Black;
+        } else {
+            vga.bg = VgaTextColor::DarkGray;
+            vga.fg = VgaTextColor::White;
+        }
+    }
+}
+
 #[no_mangle]
-pub unsafe extern "C" fn kstart(
+pub unsafe extern "C" fn start(
     kernel_entry: extern "C" fn(
         page_table: usize,
         stack: u64,
@@ -113,8 +182,16 @@ pub unsafe extern "C" fn kstart(
 
     ALLOCATOR.lock().init(heap_start, heap_size);
 
+    let mut os = OsBios {
+        boot_disk,
+        thunk10,
+        thunk13,
+        thunk15,
+        thunk16,
+    };
+
     // Locate kernel on RedoxFS
-    let disk = DiskBios::new(u8::try_from(boot_disk).unwrap(), thunk13);
+    let disk = os.disk();
 
     //TODO: get block from partition table
     let block = 1024 * 1024 / redoxfs::BLOCK_SIZE;
@@ -131,177 +208,7 @@ pub unsafe extern "C" fn kstart(
     }
     println!(": {} MiB", fs.header.1.size / 1024 / 1024);
 
-    let mut modes = Vec::new();
-    {
-        // Get card info
-        let mut data = ThunkData::new();
-        data.eax = 0x4F00;
-        data.edi = VBE_CARD_INFO_ADDR as u32;
-        data.with(thunk10);
-        if data.eax == 0x004F {
-            let card_info = ptr::read(VBE_CARD_INFO_ADDR as *const VbeCardInfo);
-
-            let mut mode_ptr = card_info.videomodeptr as *const u16;
-            loop {
-                // Ask for linear frame buffer with mode
-                let mode = *mode_ptr | (1 << 14);
-                if mode == 0xFFFF {
-                    break;
-                }
-                mode_ptr = mode_ptr.add(1);
-
-                // Get mode info
-                let mut data = ThunkData::new();
-                data.eax = 0x4F01;
-                data.ecx = mode as u32;
-                data.edi = VBE_MODE_INFO_ADDR as u32;
-                data.with(thunk10);
-                if data.eax == 0x004F {
-                    let mode_info = ptr::read(VBE_MODE_INFO_ADDR as *const VbeModeInfo);
-
-                    // We only support 32-bits per pixel modes
-                    if mode_info.bitsperpixel != 32 {
-                        continue;
-                    }
-
-                    let w = mode_info.xresolution as u32;
-                    let h = mode_info.yresolution as u32;
-
-                    let mut aspect_w = w;
-                    let mut aspect_h = h;
-                    for i in 2..cmp::min(aspect_w / 2, aspect_h / 2) {
-                        while aspect_w % i == 0 && aspect_h % i == 0 {
-                            aspect_w /= i;
-                            aspect_h /= i;
-                        }
-                    }
-
-                    //TODO: support resolutions that are not perfect multiples of 4
-                    if w % 4 != 0 {
-                        continue;
-                    }
-
-                    modes.push((
-                        mode,
-                        w, h,
-                        mode_info.physbaseptr,
-                        format!("{:>4}x{:<4} {:>3}:{:<3}", w, h, aspect_w, aspect_h)
-                    ));
-                } else {
-                    error!("Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, { data.eax });
-                }
-            }
-        } else {
-            error!("Failed to read VBE card info: 0x{:04X}", { data.eax });
-        }
-    }
-
-    // Sort modes by pixel area, reversed
-    modes.sort_by(|a, b| (b.1 * b.2).cmp(&(a.1 * a.2)));
-
-    println!();
-    println!("Arrow keys and enter select mode");
-    println!();
-    print!(" ");
-
-    //TODO 0x4F03 VBE function to get current mode
-    let off_x = VGA.lock().x;
-    let off_y = VGA.lock().y;
-    let rows = 12;
-    let mut selected = modes.get(0).map_or(0, |x| x.0);
-    while ! modes.is_empty() {
-        let mut row = 0;
-        let mut col = 0;
-        for (mode, _w, _h, _ptr, text) in modes.iter() {
-            if row >= rows {
-                col += 1;
-                row = 0;
-            }
-
-            VGA.lock().x = off_x + col * 20;
-            VGA.lock().y = off_y + row;
-
-            if *mode == selected {
-                VGA.lock().bg = VgaTextColor::White;
-                VGA.lock().fg = VgaTextColor::Black;
-            } else {
-                VGA.lock().bg = VgaTextColor::DarkGray;
-                VGA.lock().fg = VgaTextColor::White;
-            }
-
-            print!("{}", text);
-
-            row += 1;
-        }
-
-        // Read keypress
-        let mut data = ThunkData::new();
-        data.with(thunk16);
-        match (data.eax >> 8) as u8 {
-            0x4B /* Left */ => {
-                if let Some(mut mode_i) = modes.iter().position(|x| x.0 == selected) {
-                    if mode_i < rows {
-                        while mode_i < modes.len() {
-                            mode_i += rows;
-                        }
-                    }
-                    mode_i -= rows;
-                    if let Some(new) = modes.get(mode_i) {
-                        selected = new.0;
-                    }
-                }
-            },
-            0x4D /* Right */ => {
-                if let Some(mut mode_i) = modes.iter().position(|x| x.0 == selected) {
-                    mode_i += rows;
-                    if mode_i >= modes.len() {
-                        mode_i = mode_i % rows;
-                    }
-                    if let Some(new) = modes.get(mode_i) {
-                        selected = new.0;
-                    }
-                }
-            },
-            0x48 /* Up */ => {
-                if let Some(mut mode_i) = modes.iter().position(|x| x.0 == selected) {
-                    if mode_i % rows == 0 {
-                        mode_i += rows;
-                        if mode_i > modes.len() {
-                            mode_i = modes.len();
-                        }
-                    }
-                    mode_i -= 1;
-                    if let Some(new) = modes.get(mode_i) {
-                        selected = new.0;
-                    }
-                }
-            },
-            0x50 /* Down */ => {
-                if let Some(mut mode_i) = modes.iter().position(|x| x.0 == selected) {
-                    mode_i += 1;
-                    if mode_i % rows == 0 {
-                        mode_i -= rows;
-                    }
-                    if mode_i >= modes.len() {
-                        mode_i = mode_i - mode_i % rows;
-                    }
-                    if let Some(new) = modes.get(mode_i) {
-                        selected = new.0;
-                    }
-                }
-            },
-            0x1C /* Enter */ => {
-                break;
-            },
-            _ => (),
-        }
-    }
-
-    VGA.lock().x = 0;
-    VGA.lock().y = off_y + rows;
-    VGA.lock().bg = VgaTextColor::DarkGray;
-    VGA.lock().fg = VgaTextColor::White;
-    println!();
+    let mode_opt = crate::main(&mut os);
 
     let kernel = {
         let node = fs.find_node("kernel", fs.header.1.root)
@@ -355,17 +262,11 @@ pub unsafe extern "C" fn kstart(
 
     let mut env = String::with_capacity(4096);
 
-    if let Some(mode_i) = modes.iter().position(|x| x.0 == selected) {
-        if let Some((mode, w, h, ptr, _text)) = modes.get(mode_i) {
-            let mut data = ThunkData::new();
-            data.eax = 0x4F02;
-            data.ebx = *mode as u32;
-            data.with(thunk10);
-
-            env.push_str(&format!("FRAMEBUFFER_ADDR={:016x}\n", ptr));
-            env.push_str(&format!("FRAMEBUFFER_WIDTH={:016x}\n", w));
-            env.push_str(&format!("FRAMEBUFFER_HEIGHT={:016x}\n", h));
-        }
+    if let Some(mode) = mode_opt {
+        env.push_str(&format!("FRAMEBUFFER_ADDR={:016x}\n", mode.base));
+        env.push_str(&format!("FRAMEBUFFER_WIDTH={:016x}\n", mode.width));
+        env.push_str(&format!("FRAMEBUFFER_HEIGHT={:016x}\n", mode.height));
+        os.set_video_mode(mode.id);
     }
     env.push_str(&format!("REDOXFS_BLOCK={:016x}\n", fs.block));
     env.push_str("REDOXFS_UUID=");
