@@ -19,6 +19,7 @@ use core::{
     slice,
 };
 use linked_list_allocator::LockedHeap;
+use log::error;
 use spin::Mutex;
 
 use self::disk::DiskBios;
@@ -115,7 +116,8 @@ pub unsafe extern "C" fn kstart(
     // Set logger
     LOGGER.init();
 
-    let (heap_start, heap_size) = memory_map(thunk15).expect("no memory for heap");
+    let (heap_start, heap_size) = memory_map(thunk15)
+        .expect("No memory for heap");
 
     ALLOCATOR.lock().init(heap_start, heap_size);
 
@@ -194,11 +196,11 @@ pub unsafe extern "C" fn kstart(
                         format!("{:>4}x{:<4} {:>3}:{:<3}", w, h, aspect_w, aspect_h)
                     ));
                 } else {
-                    panic!("Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.eax);
+                    error!("Failed to read VBE mode 0x{:04X} info: 0x{:04X}", mode, data.eax);
                 }
             }
         } else {
-            panic!("Failed to read VBE card info: 0x{:04X}", data.eax);
+            error!("Failed to read VBE card info: 0x{:04X}", data.eax);
         }
     }
 
@@ -215,7 +217,7 @@ pub unsafe extern "C" fn kstart(
     let off_y = VGA.lock().y;
     let rows = 12;
     let mut selected = modes.get(0).map_or(0, |x| x.0);
-    loop {
+    while ! modes.is_empty() {
         let mut row = 0;
         let mut col = 0;
         for (mode, w, h, ptr, text) in modes.iter() {
@@ -311,10 +313,10 @@ pub unsafe extern "C" fn kstart(
 
     let kernel = {
         let node = fs.find_node("kernel", fs.header.1.root)
-            .expect("failed to find kernel file");
+            .expect("Failed to find kernel file");
 
         let size = fs.node_len(node.0)
-            .expect("failed to read kernel size");
+            .expect("Failed to read kernel size");
 
         print!("Kernel: 0/{} MiB", size / 1024 / 1024);
 
