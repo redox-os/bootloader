@@ -27,6 +27,7 @@ mod macros;
 
 mod disk;
 mod memory_map;
+mod panic;
 mod thunk;
 mod vbe;
 mod vga;
@@ -330,6 +331,11 @@ pub unsafe extern "C" fn kstart(
                 .expect("Failed to read kernel file") as u64;
         }
         println!("\rKernel: {}/{} MiB", i / 1024 / 1024, size / 1024 / 1024);
+
+        let magic = &kernel[..4];
+        if magic != b"\x7FELF" {
+            panic!("Kernel has invalid magic number {:#X?}", magic);
+        }
 
         kernel
     };

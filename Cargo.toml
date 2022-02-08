@@ -3,9 +3,15 @@ name = "redox_bootloader"
 version = "0.1.0"
 edition = "2018"
 
+# UEFI uses bin target
+[[bin]]
+name = "bootloader"
+path = "src/main.rs"
+
+# BIOS uses lib target
 [lib]
 name = "bootloader"
-path = "src/lib.rs"
+path = "src/main.rs"
 crate-type = ["staticlib"]
 
 [dependencies]
@@ -14,3 +20,15 @@ log = "0.4.14"
 redox_syscall = "0.2.10"
 redoxfs = { version = "0.4.4", default-features = false }
 spin = "0.9.2"
+
+[target.'cfg(target_os = "uefi")'.dependencies]
+redox_uefi = "0.1.2"
+redox_uefi_std = "0.1.5"
+
+[target.'cfg(target_os = "uefi")'.dependencies.orbclient]
+git = "https://gitlab.redox-os.org/redox-os/orbclient.git"
+branch = "no_std"
+features = ["no_std"]
+
+[target."x86_64-unknown-uefi".dependencies]
+x86 = "0.43.0"
