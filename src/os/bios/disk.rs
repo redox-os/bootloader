@@ -2,8 +2,9 @@ use core::{mem, ptr};
 use redoxfs::{BLOCK_SIZE, Disk};
 use syscall::error::{Error, Result, EIO};
 
-use crate::{DISK_ADDRESS_PACKET_ADDR, DISK_BIOS_ADDR, ThunkData};
+use super::{DISK_ADDRESS_PACKET_ADDR, DISK_BIOS_ADDR, ThunkData};
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 #[repr(packed)]
 pub struct DiskAddressPacket {
@@ -55,7 +56,7 @@ impl Disk for DiskBios {
                 data.with(self.thunk13);
 
                 //TODO: return result on error
-                assert_eq!(data.eax, 0);
+                assert_eq!({ data.eax }, 0);
 
                 //TODO: check blocks transferred
                 dap = ptr::read(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket);

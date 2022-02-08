@@ -21,7 +21,7 @@ endif
 clean:
 	rm -rf build
 
-$(BUILD)/libbootloader.a: Cargo.lock Cargo.toml src/**
+$(BUILD)/libbootloader.a: Cargo.lock Cargo.toml $(shell find src -type f)
 	mkdir -p $(BUILD)
 	cargo rustc --lib --target $(TARGET) --release -- -C soft-float -C debuginfo=2 --emit link=$@
 
@@ -31,7 +31,7 @@ $(BUILD)/bootloader.elf: linkers/$(TARGET).ld $(BUILD)/libbootloader.a
 	$(OBJCOPY) --only-keep-debug $@ $@.sym && \
 	$(OBJCOPY) --strip-debug $@
 
-$(BUILD)/bootloader.bin: $(BUILD)/bootloader.elf asm/$(TARGET)/**
+$(BUILD)/bootloader.bin: $(BUILD)/bootloader.elf $(shell find asm/$(TARGET) -type f)
 	mkdir -p $(BUILD)
 	nasm -f bin -o $@ -l $@.lst -D STAGE3=$< -iasm/$(TARGET) asm/$(TARGET)/bootloader.asm
 

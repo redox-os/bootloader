@@ -3,7 +3,7 @@
 macro_rules! print {
     ($($arg:tt)*) => ({
         use core::fmt::Write;
-        write!($crate::VGA.lock(), $($arg)*).unwrap();
+        let _ = write!($crate::os::VGA.lock(), $($arg)*);
     });
 }
 

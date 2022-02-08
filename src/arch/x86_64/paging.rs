@@ -1,9 +1,9 @@
-use core::alloc::{GlobalAlloc, Layout};
+use alloc::alloc;
 use core::slice;
 
 unsafe fn paging_allocate() -> Option<&'static mut [u64]> {
-    let ptr = crate::ALLOCATOR.alloc_zeroed(
-        Layout::from_size_align(4096, 4096).unwrap()
+    let ptr = alloc::alloc_zeroed(
+        alloc::Layout::from_size_align(4096, 4096).unwrap()
     );
     if ! ptr.is_null() {
         Some(slice::from_raw_parts_mut(

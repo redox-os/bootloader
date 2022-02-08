@@ -1,7 +1,8 @@
 use core::ptr;
 
-use crate::THUNK_STACK_ADDR;
+use super::THUNK_STACK_ADDR;
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 #[repr(packed)]
 pub struct ThunkData {

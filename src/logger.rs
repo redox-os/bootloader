@@ -1,5 +1,4 @@
-use core::fmt::Write;
-use log::{Level, LevelFilter, Log, Metadata, Record, SetLoggerError};
+use log::{LevelFilter, Log, Metadata, Record};
 
 pub static LOGGER: Logger = Logger;
 
@@ -13,7 +12,7 @@ impl Logger {
 }
 
 impl Log for Logger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
+    fn enabled(&self, _metadata: &Metadata) -> bool {
         true
     }
 

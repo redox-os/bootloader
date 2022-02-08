@@ -7,6 +7,7 @@ pub struct VgaTextBlock {
     pub color: u8,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum VgaTextColor {
