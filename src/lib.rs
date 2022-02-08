@@ -13,6 +13,7 @@ use alloc::{
 use core::{
     alloc::{GlobalAlloc, Layout},
     cmp,
+    convert::TryFrom,
     fmt::{self, Write},
     ptr,
     slice,
@@ -108,84 +109,15 @@ pub unsafe extern "C" fn kstart(
         data.with(thunk10);
     }
 
-    {
-        // Clear VGA console
-        let mut vga = VGA.lock();
-        let blocks = vga.blocks();
-        for i in 0..blocks.len() {
-            blocks[i] = VgaTextBlock {
-                char: 0,
-                color: ((vga.bg as u8) << 4) | (vga.fg as u8),
-            };
-        }
-    }
+    // Clear screen
+    VGA.lock().clear();
 
     // Set logger
     LOGGER.init();
 
     let (heap_start, heap_size) = memory_map(thunk15).expect("no memory for heap");
 
-    println!("HEAP: {:X}:{:X}", heap_start, heap_size);
     ALLOCATOR.lock().init(heap_start, heap_size);
-
-    // Locate kernel on RedoxFS
-    //TODO: ensure boot_disk is 8-bit
-    println!("BIOS Disk: {:02X}", boot_disk);
-    let disk = DiskBios::new(boot_disk as u8, thunk13);
-
-    //TODO: get block from partition table
-    let block = 1024 * 1024 / redoxfs::BLOCK_SIZE;
-    let mut fs = redoxfs::FileSystem::open(disk, Some(block))
-        .expect("Failed to open RedoxFS");
-
-    println!("RedoxFS Size: {} MiB", fs.header.1.size / 1024 / 1024);
-
-    let kernel = {
-        let node = fs.find_node("kernel", fs.header.1.root)
-            .expect("failed to find kernel file");
-
-        let size = fs.node_len(node.0)
-            .expect("failed to read kernel size");
-
-        print!("Kernel: 0/{} MiB", size / 1024 / 1024);
-
-        let ptr = ALLOCATOR.alloc_zeroed(
-            Layout::from_size_align(size as usize, 4096).unwrap()
-        );
-        if ptr.is_null() {
-            panic!("Failed to allocate memory for kernel");
-        }
-
-        let kernel = slice::from_raw_parts_mut(
-            ptr,
-            size as usize
-        );
-
-        let mut i = 0;
-        for chunk in kernel.chunks_mut(1024 * 1024) {
-            print!("\rKernel: {}/{}", i / 1024 / 1024, size / 1024 / 1024);
-            i += fs.read_node(node.0, i, chunk, 0, 0)
-                .expect("Failed to read kernel file") as u64;
-        }
-        println!("\rKernel: {}/{}", i / 1024 / 1024, size / 1024 / 1024);
-
-        kernel
-    };
-
-    let page_phys = paging::paging_create(kernel.as_ptr() as usize)
-        .expect("Failed to set up paging");
-
-    //TODO: properly reserve page table allocations so kernel does not re-use them
-
-    let stack_size = 0x20000;
-    let stack_base = ALLOCATOR.alloc_zeroed(
-        Layout::from_size_align(stack_size, 4096).unwrap()
-    );
-    if stack_base.is_null() {
-        panic!("Failed to allocate memory for stack");
-    }
-
-    let mut env = String::with_capacity(4096);
 
     let mut modes = Vec::new();
     {
@@ -256,7 +188,9 @@ pub unsafe extern "C" fn kstart(
     modes.sort_by(|a, b| (b.1 * b.2).cmp(&(a.1 * a.2)));
 
     println!();
-    println!("Arrow keys and enter select mode");
+    println!(" Arrow keys and enter select mode");
+    println!();
+    print!(" ");
 
     //TODO 0x4F03 VBE function to get current mode
     let off_x = VGA.lock().x;
@@ -345,18 +279,92 @@ pub unsafe extern "C" fn kstart(
                 }
             },
             0x1C /* Enter */ => {
-                let mut data = ThunkData::new();
-                data.eax = 0x4F02;
-                data.ebx = selected as u32;
-                data.with(thunk10);
                 break;
             },
             _ => (),
         }
     }
 
+    // Clear screen
+    {
+        let mut vga = VGA.lock();
+        vga.bg = VgaTextColor::DarkGray;
+        vga.fg = VgaTextColor::White;
+        vga.clear();
+    }
+
+    // Locate kernel on RedoxFS
+    let disk = DiskBios::new(u8::try_from(boot_disk).unwrap(), thunk13);
+
+    //TODO: get block from partition table
+    let block = 1024 * 1024 / redoxfs::BLOCK_SIZE;
+    let mut fs = redoxfs::FileSystem::open(disk, Some(block))
+        .expect("Failed to open RedoxFS");
+
+    print!("RedoxFS ");
+    for i in 0..fs.header.1.uuid.len() {
+        if i == 4 || i == 6 || i == 8 || i == 10 {
+            print!("-");
+        }
+
+        print!("{:>02x}", fs.header.1.uuid[i]);
+    }
+    println!(": {} MiB", fs.header.1.size / 1024 / 1024);
+
+    let kernel = {
+        let node = fs.find_node("kernel", fs.header.1.root)
+            .expect("failed to find kernel file");
+
+        let size = fs.node_len(node.0)
+            .expect("failed to read kernel size");
+
+        print!("Kernel: 0/{} MiB", size / 1024 / 1024);
+
+        let ptr = ALLOCATOR.alloc_zeroed(
+            Layout::from_size_align(size as usize, 4096).unwrap()
+        );
+        if ptr.is_null() {
+            panic!("Failed to allocate memory for kernel");
+        }
+
+        let kernel = slice::from_raw_parts_mut(
+            ptr,
+            size as usize
+        );
+
+        let mut i = 0;
+        for chunk in kernel.chunks_mut(1024 * 1024) {
+            print!("\rKernel: {}/{}", i / 1024 / 1024, size / 1024 / 1024);
+            i += fs.read_node(node.0, i, chunk, 0, 0)
+                .expect("Failed to read kernel file") as u64;
+        }
+        println!("\rKernel: {}/{}", i / 1024 / 1024, size / 1024 / 1024);
+
+        kernel
+    };
+
+    let page_phys = paging::paging_create(kernel.as_ptr() as usize)
+        .expect("Failed to set up paging");
+
+    //TODO: properly reserve page table allocations so kernel does not re-use them
+
+    let stack_size = 0x20000;
+    let stack_base = ALLOCATOR.alloc_zeroed(
+        Layout::from_size_align(stack_size, 4096).unwrap()
+    );
+    if stack_base.is_null() {
+        panic!("Failed to allocate memory for stack");
+    }
+
+    let mut env = String::with_capacity(4096);
+
     if let Some(mode_i) = modes.iter().position(|x| x.0 == selected) {
         if let Some((mode, w, h, ptr, text)) = modes.get(mode_i) {
+            let mut data = ThunkData::new();
+            data.eax = 0x4F02;
+            data.ebx = *mode as u32;
+            data.with(thunk10);
+
             env.push_str(&format!("FRAMEBUFFER_ADDR={:016x}\n", ptr));
             env.push_str(&format!("FRAMEBUFFER_WIDTH={:016x}\n", w));
             env.push_str(&format!("FRAMEBUFFER_HEIGHT={:016x}\n", h));

@@ -57,6 +57,18 @@ impl Vga {
             self.width * self.height,
         )
     }
+
+    pub fn clear(&mut self) {
+        self.x = 0;
+        self.y = 0;
+        let blocks = unsafe { self.blocks() };
+        for i in 0..blocks.len() {
+            blocks[i] = VgaTextBlock {
+                char: 0,
+                color: ((self.bg as u8) << 4) | (self.fg as u8),
+            };
+        }
+    }
 }
 
 impl fmt::Write for Vga {
