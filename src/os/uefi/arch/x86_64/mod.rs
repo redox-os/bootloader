@@ -223,7 +223,35 @@ fn inner() -> Result<()> {
         }
 
         println!("Loading Kernel...");
-        let kernel = {
+        let kernel = if let Ok((_i, mut kernel_file)) = find("\\redox_bootloader\\kernel") {
+            let info = kernel_file.info()?;
+            let len = info.FileSize;
+
+            let kernel = unsafe {
+                let ptr = allocate_zero_pages((len as usize + page_size - 1) / page_size)?;
+                slice::from_raw_parts_mut(
+                    ptr as *mut u8,
+                    len as usize
+                )
+            };
+
+            let mut i = 0;
+            for mut chunk in kernel.chunks_mut(4 * MB) {
+                print!("\r{}% - {} MB", i as u64 * 100 / len, i / MB);
+
+                let count = kernel_file.read(&mut chunk)?;
+                if count == 0 {
+                    break;
+                }
+                //TODO: return error instead of assert
+                assert_eq!(count, chunk.len());
+
+                i += count;
+            }
+            println!("\r{}% - {} MB", i as u64 * 100 / len, i / MB);
+
+            kernel
+        } else {
             let mut fs = redoxfs()?;
 
             let root = fs.header.1.root;
