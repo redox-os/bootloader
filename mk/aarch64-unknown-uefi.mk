@@ -51,6 +51,6 @@ qemu: $(BUILD)/harddrive.bin $(BUILD)/firmware.rom
 		-mon chardev=debug \
 		-machine virt \
 		-net none \
-		-cpu cortex-a57 \
+		-cpu max \
 		-bios $(BUILD)/firmware.rom \
 		-drive file=$<,format=raw

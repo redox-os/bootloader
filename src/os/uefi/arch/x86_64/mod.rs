@@ -20,7 +20,6 @@ use self::paging::{paging_create, paging_enter};
 
 mod memory_map;
 mod paging;
-mod partitions;
 
 static PHYS_OFFSET: u64 = 0xFFFF800000000000;
 
@@ -86,46 +85,6 @@ unsafe fn enter() -> ! {
 
     let entry_fn: extern "sysv64" fn(args_ptr: *const KernelArgs) -> ! = mem::transmute(KERNEL_ENTRY);
     entry_fn(&args);
-}
-
-fn get_correct_block_io() -> Result<DiskEfi> {
-    // Get all BlockIo handles.
-    let mut handles = vec! [uefi::Handle(0); 128];
-    let mut size = handles.len() * mem::size_of::<uefi::Handle>();
-
-    (std::system_table().BootServices.LocateHandle)(uefi::boot::LocateSearchType::ByProtocol, &uefi::guid::BLOCK_IO_GUID, 0, &mut size, handles.as_mut_ptr())?;
-
-    let max_size = size / mem::size_of::<uefi::Handle>();
-    let actual_size = std::cmp::min(handles.len(), max_size);
-
-    // Return the handle that seems bootable.
-    for handle in handles.into_iter().take(actual_size) {
-        let block_io = DiskEfi::handle_protocol(handle)?;
-        if !block_io.0.Media.LogicalPartition {
-            continue;
-        }
-
-        let part = partitions::PartitionProto::handle_protocol(handle)?.0;
-        if part.sys == 1 {
-            continue;
-        }
-        assert_eq!({part.rev}, partitions::PARTITION_INFO_PROTOCOL_REVISION);
-        if part.ty == partitions::PartitionProtoDataTy::Gpt as u32 {
-            let gpt = unsafe { part.info.gpt };
-            assert_ne!(gpt.part_ty_guid, partitions::ESP_GUID, "detected esp partition again");
-            if gpt.part_ty_guid == partitions::REDOX_FS_GUID || gpt.part_ty_guid == partitions::LINUX_FS_GUID {
-                return Ok(block_io);
-            }
-        } else if part.ty == partitions::PartitionProtoDataTy::Mbr as u32 {
-            let mbr = unsafe { part.info.mbr };
-            if mbr.ty == 0x83 {
-                return Ok(block_io);
-            }
-        } else {
-            continue;
-        }
-    }
-    panic!("Couldn't find handle for partition");
 }
 
 struct Invalid;
@@ -202,10 +161,19 @@ fn find_acpi_table_pointers() -> Result<()> {
 }
 
 fn redoxfs() -> Result<redoxfs::FileSystem<DiskEfi>> {
-    // TODO: Scan multiple partitions for a kernel.
-    // TODO: pass block_opt for performance reasons
-    redoxfs::FileSystem::open(get_correct_block_io()?, None)
-        .map_err(|_| Error::DeviceError)
+    for (i, block_io) in DiskEfi::all().into_iter().enumerate() {
+        if !block_io.0.Media.LogicalPartition {
+            continue;
+        }
+
+        match redoxfs::FileSystem::open(block_io, Some(0)) {
+            Ok(ok) => return Ok(ok),
+            Err(err) => {
+                log::error!("Failed to open RedoxFS on block I/O {}: {}", i, err);
+            }
+        }
+    }
+    panic!("Failed to find RedoxFS");
 }
 
 const MB: usize = 1024 * 1024;
@@ -434,7 +402,7 @@ fn select_mode(output: &mut Output) -> Result<()> {
 
             let mut row = 0;
             let mut col = 0;
-            for (i, w, h, text) in modes.iter() {
+            for (i, _w, _h, text) in modes.iter() {
                 if row >= rows as i32 {
                     col += 1;
                     row = 0;

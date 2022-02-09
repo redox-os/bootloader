@@ -7,7 +7,6 @@ mod arch;
 mod disk;
 mod display;
 mod key;
-pub mod null;
 pub mod text;
 
 fn set_max_mode(output: &uefi::text::TextOutput) -> Result<()> {
