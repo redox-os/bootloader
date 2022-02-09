@@ -47,8 +47,8 @@ impl Vga {
             height,
             x: 0,
             y: 0,
-            bg: VgaTextColor::DarkGray,
-            fg: VgaTextColor::White,
+            bg: VgaTextColor::Black,
+            fg: VgaTextColor::Gray,
         }
     }
 

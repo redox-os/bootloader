@@ -16,10 +16,18 @@ extern crate alloc;
 #[macro_use]
 extern crate uefi_std as std;
 
-use alloc::vec::Vec;
-use core::cmp;
+use alloc::{
+    vec::Vec,
+};
+use core::{
+    cmp,
+    fmt::{self, Write},
+    slice,
+    str,
+};
 use redoxfs::Disk;
 
+use self::arch::paging_create;
 use self::os::{Os, OsKey, OsMemoryEntry, OsVideoMode};
 
 #[macro_use]
@@ -28,11 +36,68 @@ mod os;
 mod arch;
 mod logger;
 
+const KIBI: usize = 1024;
+const MIBI: usize = KIBI * KIBI;
+
+struct SliceWriter<'a> {
+    slice: &'a mut [u8],
+    i: usize,
+}
+
+impl<'a> Write for SliceWriter<'a> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for b in s.bytes() {
+            if let Some(slice_b) = self.slice.get_mut(self.i) {
+                *slice_b = b;
+                self.i += 1;
+            } else {
+                return Err(fmt::Error);
+            }
+        }
+        Ok(())
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+#[repr(packed)]
+pub struct KernelArgs {
+    kernel_base: u64,
+    kernel_size: u64,
+    stack_base: u64,
+    stack_size: u64,
+    env_base: u64,
+    env_size: u64,
+
+    /// The base 64-bit pointer to an array of saved RSDPs. It's up to the kernel (and possibly
+    /// userspace), to decide which RSDP to use. The buffer will be a linked list containing a
+    /// 32-bit relative (to this field) next, and the actual struct afterwards.
+    ///
+    /// This field can be NULL, and if so, the system has not booted with UEFI or in some other way
+    /// retrieved the RSDPs. The kernel or a userspace driver will thus try searching the BIOS
+    /// memory instead. On UEFI systems, searching is not guaranteed to actually work though.
+    acpi_rsdps_base: u64,
+    /// The size of the RSDPs region.
+    acpi_rsdps_size: u64,
+}
+
 fn main<
     D: Disk,
     M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, M, V>) -> Option<OsVideoMode> {
+>(os: &mut dyn Os<D, M, V>) -> (usize, KernelArgs) {
+    let mut fs = os.filesystem();
+
+    print!("RedoxFS ");
+    for i in 0..fs.header.1.uuid.len() {
+        if i == 4 || i == 6 || i == 8 || i == 10 {
+            print!("-");
+        }
+
+        print!("{:>02x}", fs.header.1.uuid[i]);
+    }
+    println!(": {} MiB", fs.header.1.size / MIBI as u64);
+
     let mut modes = Vec::new();
     for mode in os.video_modes() {
         let mut aspect_w = mode.width;
@@ -62,6 +127,7 @@ fn main<
     let rows = 12;
     //TODO 0x4F03 VBE function to get current mode
     let mut selected = modes.get(0).map_or(0, |x| x.0.id);
+    let mut mode_opt = None;
     while ! modes.is_empty() {
         let mut row = 0;
         let mut col = 0;
@@ -134,6 +200,11 @@ fn main<
                 }
             },
             OsKey::Enter => {
+                if let Some(mode_i) = modes.iter().position(|x| x.0.id == selected) {
+                    if let Some((mode, _text)) = modes.get(mode_i) {
+                        mode_opt = Some(*mode);
+                    }
+                }
                 break;
             },
             _ => (),
@@ -144,11 +215,99 @@ fn main<
     os.set_text_highlight(false);
     println!();
 
-    if let Some(mode_i) = modes.iter().position(|x| x.0.id == selected) {
-        if let Some((mode, _text)) = modes.get(mode_i) {
-            return Some(*mode);
+    let kernel = {
+        let node = fs.find_node("kernel", fs.header.1.root)
+            .expect("Failed to find kernel file");
+
+        let size = fs.node_len(node.0)
+            .expect("Failed to read kernel size");
+
+        print!("Kernel: 0/{} MiB", size / MIBI as u64);
+
+        let ptr = os.alloc_zeroed_page_aligned(size as usize);
+        if ptr.is_null() {
+            panic!("Failed to allocate memory for kernel");
         }
+
+        let kernel = unsafe {
+            slice::from_raw_parts_mut(ptr, size as usize)
+        };
+
+        let mut i = 0;
+        for chunk in kernel.chunks_mut(MIBI) {
+            print!("\rKernel: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
+            i += fs.read_node(node.0, i, chunk, 0, 0)
+                .expect("Failed to read kernel file") as u64;
+        }
+        println!("\rKernel: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
+
+        let magic = &kernel[..4];
+        if magic != b"\x7FELF" {
+            panic!("Kernel has invalid magic number {:#X?}", magic);
+        }
+
+        kernel
+    };
+
+    let page_phys = unsafe { paging_create(os, kernel.as_ptr() as usize) }
+        .expect("Failed to set up paging");
+
+    //TODO: properly reserve page table allocations so kernel does not re-use them
+
+    let stack_size = 128 * KIBI;
+    let stack_base = os.alloc_zeroed_page_aligned(stack_size);
+    if stack_base.is_null() {
+        panic!("Failed to allocate memory for stack");
     }
 
-    None
+    let mut env_size = 4 * KIBI;
+    let env_base = os.alloc_zeroed_page_aligned(env_size);
+    if env_base.is_null() {
+        panic!("Failed to allocate memory for stack");
+    }
+
+    {
+        let mut w = SliceWriter {
+            slice: unsafe {
+                slice::from_raw_parts_mut(env_base, env_size)
+            },
+            i: 0,
+        };
+
+        writeln!(w, "REDOXFS_BLOCK={:016x}", fs.block).unwrap();
+        write!(w, "REDOXFS_UUID=").unwrap();
+        for i in 0..fs.header.1.uuid.len() {
+            if i == 4 || i == 6 || i == 8 || i == 10 {
+                write!(w, "-").unwrap();
+            }
+
+            write!(w, "{:>02x}", fs.header.1.uuid[i]).unwrap();
+        }
+        writeln!(w).unwrap();
+
+        if let Some(mut mode) = mode_opt {
+            // Set mode to get updated values
+            os.set_video_mode(&mut mode);
+
+            writeln!(w, "FRAMEBUFFER_ADDR={:016x}", mode.base).unwrap();
+            writeln!(w, "FRAMEBUFFER_WIDTH={:016x}", mode.width).unwrap();
+            writeln!(w, "FRAMEBUFFER_HEIGHT={:016x}", mode.height).unwrap();
+        }
+
+        env_size = w.i;
+    }
+
+    (
+        page_phys,
+        KernelArgs {
+            kernel_base: kernel.as_ptr() as u64,
+            kernel_size: kernel.len() as u64,
+            stack_base: stack_base as u64,
+            stack_size: stack_size as u64,
+            env_base: env_base as u64,
+            env_size: env_size as u64,
+            acpi_rsdps_base: 0,
+            acpi_rsdps_size: 0,
+        }
+    )
 }

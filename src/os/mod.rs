@@ -51,12 +51,16 @@ pub trait Os<
     M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
 > {
-    fn disk(&self) -> D;
+    fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8;
+
+    fn page_size(&self) -> usize;
+
+    fn filesystem(&self) -> redoxfs::FileSystem<D>;
 
     fn memory(&self) -> M;
 
     fn video_modes(&self) -> V;
-    fn set_video_mode(&self, id: u32);
+    fn set_video_mode(&self, mode: &mut OsVideoMode);
 
     fn get_key(&self) -> OsKey;
 

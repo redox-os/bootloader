@@ -6,8 +6,6 @@ use uefi::status::{Result, Status};
 mod arch;
 mod disk;
 mod display;
-mod key;
-pub mod text;
 
 fn set_max_mode(output: &uefi::text::TextOutput) -> Result<()> {
     let mut max_i = None;
@@ -44,8 +42,7 @@ pub extern "C" fn main() -> Status {
     }
 
     if let Err(err) = arch::main() {
-        println!("App error: {:?}", err);
-        let _ = key::key(true);
+        panic!("App error: {:?}", err);
     }
 
     (uefi.RuntimeServices.ResetSystem)(ResetType::Cold, Status(0), 0, ptr::null());

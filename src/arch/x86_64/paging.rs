@@ -1,10 +1,14 @@
-use alloc::alloc;
 use core::slice;
+use redoxfs::Disk;
 
-unsafe fn paging_allocate() -> Option<&'static mut [u64]> {
-    let ptr = alloc::alloc_zeroed(
-        alloc::Layout::from_size_align(4096, 4096).unwrap()
-    );
+use crate::os::{Os, OsMemoryEntry, OsVideoMode};
+
+unsafe fn paging_allocate<
+    D: Disk,
+    M: Iterator<Item=OsMemoryEntry>,
+    V: Iterator<Item=OsVideoMode>
+>(os: &mut dyn Os<D, M, V>) -> Option<&'static mut [u64]> {
+    let ptr = os.alloc_zeroed_page_aligned(4096);
     if ! ptr.is_null() {
         Some(slice::from_raw_parts_mut(
             ptr as *mut u64,
@@ -15,16 +19,20 @@ unsafe fn paging_allocate() -> Option<&'static mut [u64]> {
     }
 }
 
-pub unsafe fn paging_create(kernel_phys: usize) -> Option<usize> {
+pub unsafe fn paging_create<
+    D: Disk,
+    M: Iterator<Item=OsMemoryEntry>,
+    V: Iterator<Item=OsVideoMode>
+>(os: &mut dyn Os<D, M, V>, kernel_phys: usize) -> Option<usize> {
     // Create PML4
-    let pml4 = paging_allocate()?;
+    let pml4 = paging_allocate(os)?;
 
     // Recursive mapping for compatibility
     pml4[511] = pml4.as_ptr() as u64 | 1 << 1 | 1;
 
     {
         // Create PDP for identity mapping
-        let pdp = paging_allocate()?;
+        let pdp = paging_allocate(os)?;
 
         // Link first user and first kernel PML4 entry to PDP
         pml4[0] = pdp.as_ptr() as u64 | 1 << 1 | 1;
@@ -32,10 +40,10 @@ pub unsafe fn paging_create(kernel_phys: usize) -> Option<usize> {
 
         // Identity map 8 GiB pages
         for pdp_i in 0..8 {
-            let pd = paging_allocate()?;
+            let pd = paging_allocate(os)?;
             pdp[pdp_i] = pd.as_ptr() as u64 | 1 << 1 | 1;
             for pd_i in 0..pd.len() {
-                let pt = paging_allocate()?;
+                let pt = paging_allocate(os)?;
                 pd[pd_i] = pt.as_ptr() as u64 | 1 << 1 | 1;
                 for pt_i in 0..pt.len() {
                     let addr =
@@ -50,17 +58,17 @@ pub unsafe fn paging_create(kernel_phys: usize) -> Option<usize> {
 
     {
         // Create PDP for kernel mapping
-        let pdp = paging_allocate()?;
+        let pdp = paging_allocate(os)?;
 
         // Link second to last PML4 entry to PDP
         pml4[510] = pdp.as_ptr() as u64 | 1 << 1 | 1;
 
         // Map 1 GiB at kernel offset
         for pdp_i in 0..1 {
-            let pd = paging_allocate()?;
+            let pd = paging_allocate(os)?;
             pdp[pdp_i] = pd.as_ptr() as u64 | 1 << 1 | 1;
             for pd_i in 0..pd.len() {
-                let pt = paging_allocate()?;
+                let pt = paging_allocate(os)?;
                 pd[pd_i] = pt.as_ptr() as u64 | 1 << 1 | 1;
                 for pt_i in 0..pt.len() {
                     let addr =

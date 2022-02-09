@@ -2,7 +2,6 @@ use alloc::{
     string::String,
 };
 use core::{mem, ptr, slice};
-use orbclient::{Color, Renderer};
 use std::fs::find;
 use std::proto::Protocol;
 use uefi::guid::Guid;
@@ -11,9 +10,7 @@ use uefi::status::{Error, Result};
 
 use super::super::{
     disk::DiskEfi,
-    display::{Display, ScaledDisplay, Output},
-    key::{key, Key},
-    text::TextDisplay,
+    display::{Output},
 };
 
 use self::memory_map::memory_map;

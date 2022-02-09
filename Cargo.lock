@@ -54,11 +54,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "orbclient"
-version = "0.3.21"
-source = "git+https://gitlab.redox-os.org/redox-os/orbclient.git?branch=no_std#0cf93f23b88fdeff6561a4f9b4b91798c3c3a4a1"
-
-[[package]]
 name = "raw-cpuid"
 version = "10.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -73,7 +68,6 @@ version = "0.1.0"
 dependencies = [
  "linked_list_allocator",
  "log",
- "orbclient",
  "redox_syscall",
  "redox_uefi",
  "redox_uefi_std",
