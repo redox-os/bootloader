@@ -60,7 +60,7 @@ fn validate_rsdp(address: usize, v2: bool) -> core::result::Result<usize, Invali
     let rsdp_bytes = unsafe { core::slice::from_raw_parts(address as *const u8, core::mem::size_of::<Rsdp>()) };
     let rsdp = unsafe { (rsdp_bytes.as_ptr() as *const Rsdp).as_ref::<'static>().unwrap() };
 
-    println!("RSDP: {:?}", rsdp);
+    log::debug!("RSDP: {:?}", rsdp);
 
     if rsdp.signature != *b"RSD PTR " {
         return Err(Invalid);
@@ -114,7 +114,7 @@ fn find_acpi_table_pointers() {
                 rsdps_area.extend(unsafe { core::slice::from_raw_parts(address as *const u8, length) });
                 rsdps_area.resize(((rsdps_area.len() + (align - 1)) / align) * align, 0u8);
             }
-            Err(_) => println!("Found RSDP that wasn't valid at {:p}", address as *const u8),
+            Err(_) => log::warn!("Found RSDP that was not valid at {:p}", address as *const u8),
         }
     }
 }
@@ -171,8 +171,11 @@ impl Os<
 
             match redoxfs::FileSystem::open(block_io, Some(0)) {
                 Ok(ok) => return ok,
-                Err(err) => {
-                    log::warn!("Failed to open RedoxFS on block I/O {}: {}", i, err);
+                Err(err) => match err.errno {
+                    // Ignore header not found error
+                    syscall::ENOENT => (),
+                    // Print any other errors
+                    _ => log::error!("Failed to open RedoxFS on block I/O {}: {}", i, err),
                 }
             }
         }
@@ -278,7 +281,6 @@ pub fn main() -> Result<()> {
         st: std::system_table(),
     };
 
-    println!("Parsing and writing ACPI RSDP structures.");
     find_acpi_table_pointers();
 
     let (page_phys, mut args) = crate::main(&mut os);
