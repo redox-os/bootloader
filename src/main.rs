@@ -86,6 +86,8 @@ fn main<
     M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
 >(os: &mut dyn Os<D, M, V>) -> (usize, KernelArgs) {
+    println!("Redox OS Bootloader {}", env!("CARGO_PKG_VERSION"));
+
     let mut fs = os.filesystem();
 
     print!("RedoxFS ");
