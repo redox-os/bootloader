@@ -7,17 +7,30 @@ use super::{ThunkData, VBE_CARD_INFO_ADDR, VBE_MODE_INFO_ADDR};
 
 #[derive(Clone, Copy, Debug)]
 #[repr(packed)]
+pub struct VbeFarPtr {
+    pub offset: u16,
+    pub segment: u16,
+}
+
+impl VbeFarPtr {
+    pub unsafe fn as_ptr<T>(&self) -> *const T {
+        (((self.segment as usize) << 4) + (self.offset as usize)) as *const T
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+#[repr(packed)]
 pub struct VbeCardInfo {
     pub signature: [u8; 4],
     pub version: u16,
-    pub oemstring: u32,
-    pub capabilities: u32,
-    pub videomodeptr: u32,
+    pub oemstring: VbeFarPtr,
+    pub capabilities: [u8; 4],
+    pub videomodeptr: VbeFarPtr,
     pub totalmemory: u16,
     pub oemsoftwarerev: u16,
-    pub oemvendornameptr: u32,
-    pub oemproductnameptr: u32,
-    pub oemproductrevptr: u32,
+    pub oemvendornameptr: VbeFarPtr,
+    pub oemproductnameptr: VbeFarPtr,
+    pub oemproductrevptr: VbeFarPtr,
     pub reserved: [u8; 222],
     pub oemdata: [u8; 256],
 }
@@ -74,7 +87,7 @@ impl VideoModeIter {
         unsafe { data.with(thunk10); }
         let mode_ptr = if data.eax == 0x004F {
             let card_info = unsafe { ptr::read(VBE_CARD_INFO_ADDR as *const VbeCardInfo) };
-            card_info.videomodeptr as *const u16
+            unsafe { card_info.videomodeptr.as_ptr::<u16>() }
         } else {
             error!("Failed to read VBE card info: 0x{:04X}", { data.eax });
             ptr::null()
