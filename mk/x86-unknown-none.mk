@@ -19,6 +19,20 @@ $(BUILD)/bootloader.bin: $(BUILD)/bootloader.elf $(shell find asm/$(TARGET) -typ
 	mkdir -p $(BUILD)
 	nasm -f bin -o $@ -l $@.lst -D STAGE3=$< -iasm/$(TARGET) asm/$(TARGET)/bootloader.asm
 
+$(BUILD)/libbootloader-live.a: Cargo.lock Cargo.toml $(shell find src -type f)
+	mkdir -p $(BUILD)
+	cargo rustc --lib --target $(TARGET) --release --features live -- -C soft-float -C debuginfo=2 --emit link=$@
+
+$(BUILD)/bootloader-live.elf: linkers/$(TARGET).ld $(BUILD)/libbootloader-live.a
+	mkdir -p $(BUILD)
+	$(LD) -m elf_i386 --gc-sections -z max-page-size=0x1000 -T $< -o $@ $(BUILD)/libbootloader-live.a && \
+	$(OBJCOPY) --only-keep-debug $@ $@.sym && \
+	$(OBJCOPY) --strip-debug $@
+
+$(BUILD)/bootloader-live.bin: $(BUILD)/bootloader-live.elf $(shell find asm/$(TARGET) -type f)
+	mkdir -p $(BUILD)
+	nasm -f bin -o $@ -l $@.lst -D STAGE3=$< -iasm/$(TARGET) asm/$(TARGET)/bootloader.asm
+
 $(BUILD)/harddrive.bin: $(BUILD)/bootloader.bin $(BUILD)/filesystem.bin
 	mkdir -p $(BUILD)
 	rm -f $@.partial

@@ -215,6 +215,12 @@ fn main<
     os.set_text_highlight(false);
     println!();
 
+    let stack_size = 128 * KIBI;
+    let stack_base = os.alloc_zeroed_page_aligned(stack_size);
+    if stack_base.is_null() {
+        panic!("Failed to allocate memory for stack");
+    }
+
     let kernel = {
         let node = fs.find_node("kernel", fs.header.1.root)
             .expect("Failed to find kernel file");
@@ -251,14 +257,35 @@ fn main<
 
     let page_phys = unsafe { paging_create(os, kernel.as_ptr() as usize) }
         .expect("Failed to set up paging");
-
     //TODO: properly reserve page table allocations so kernel does not re-use them
 
-    let stack_size = 128 * KIBI;
-    let stack_base = os.alloc_zeroed_page_aligned(stack_size);
-    if stack_base.is_null() {
-        panic!("Failed to allocate memory for stack");
-    }
+    let live_opt = if cfg!(feature = "live") {
+        let size = fs.header.1.size;
+
+        print!("Live: 0/{} MiB", size / MIBI as u64);
+
+        let ptr = os.alloc_zeroed_page_aligned(size as usize);
+        if ptr.is_null() {
+            panic!("Failed to allocate memory for live");
+        }
+
+        let live = unsafe {
+            slice::from_raw_parts_mut(ptr, size as usize)
+        };
+
+        let mut i = 0;
+        for chunk in live.chunks_mut(MIBI) {
+            print!("\rLive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
+            i += fs.disk.read_at(fs.block + i / redoxfs::BLOCK_SIZE, chunk)
+                .expect("Failed to read live disk") as u64;
+        }
+        println!("\rLive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
+
+        Some(live)
+    } else {
+        None
+    };
+    //TODO: properly reserve live disk so kernel does not re-use it
 
     let mut env_size = 4 * KIBI;
     let env_base = os.alloc_zeroed_page_aligned(env_size);
@@ -274,7 +301,13 @@ fn main<
             i: 0,
         };
 
-        writeln!(w, "REDOXFS_BLOCK={:016x}", fs.block).unwrap();
+        if let Some(live) = live_opt {
+            writeln!(w, "DISK_LIVE_ADDR={:016x}", live.as_ptr() as usize).unwrap();
+            writeln!(w, "DISK_LIVE_SIZE={:016x}", live.len()).unwrap();
+            writeln!(w, "REDOXFS_BLOCK={:016x}", 0).unwrap();
+        } else {
+            writeln!(w, "REDOXFS_BLOCK={:016x}", fs.block).unwrap();
+        }
         write!(w, "REDOXFS_UUID=").unwrap();
         for i in 0..fs.header.1.uuid.len() {
             if i == 4 || i == 6 || i == 8 || i == 10 {

@@ -15,6 +15,19 @@ $(BUILD)/bootloader.efi: Cargo.lock Cargo.toml $(shell find src -type f)
 		-C soft-float \
 		--emit link=$@
 
+$(BUILD)/bootloader-live.efi: Cargo.lock Cargo.toml $(shell find src -type f)
+	mkdir -p $(BUILD)
+	cargo rustc \
+		-Z build-std=core,alloc \
+		-Z build-std-features=compiler-builtins-mem \
+		--target $(TARGET) \
+		--bin bootloader \
+		--release \
+		--features live \
+		-- \
+		-C soft-float \
+		--emit link=$@
+
 $(BUILD)/esp.bin: $(BUILD)/bootloader.efi
 	mkdir -p $(BUILD)
 	rm -f $@.partial
