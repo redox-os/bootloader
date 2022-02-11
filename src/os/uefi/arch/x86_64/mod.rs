@@ -17,7 +17,7 @@ use crate::{
 
 use super::super::{
     disk::DiskEfi,
-    display::{EdidDiscovered, Output},
+    display::{EdidActive, Output},
 };
 
 use self::memory_map::{MemoryMapIter, memory_map};
@@ -138,7 +138,7 @@ impl Os<
     fn name(&self) -> &str {
         "x86_64/UEFI"
     }
-    
+
     fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8 {
         assert!(size != 0);
 
@@ -206,7 +206,7 @@ impl Os<
 
     fn best_resolution(&self) -> Option<(u32, u32)> {
         //TODO: get this per output
-        match EdidDiscovered::one() {
+        match EdidActive::one() {
             Ok(efi_edid) => {
                 let edid = unsafe {
                     slice::from_raw_parts(efi_edid.0.Edid, efi_edid.0.SizeOfEdid as usize)
