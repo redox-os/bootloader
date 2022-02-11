@@ -1,11 +1,211 @@
-use core::ops::Try;
-use core::ptr;
-use uefi::reset::ResetType;
-use uefi::status::{Result, Status};
+use core::{
+    ops::{ControlFlow, Try},
+    ptr,
+    slice
+};
+use std::{
+    proto::Protocol,
+};
+use uefi::{
+    reset::ResetType,
+    memory::MemoryType,
+    status::{Result, Status},
+    system::SystemTable,
+    text::TextInputKey,
+};
+
+use crate::os::{
+    Os,
+    OsKey,
+    OsVideoMode,
+};
+
+use self::{
+    disk::DiskEfi,
+    display::{EdidActive, Output},
+    memory_map::MemoryMapIter,
+    video_mode::VideoModeIter,
+};
 
 mod arch;
 mod disk;
 mod display;
+mod memory_map;
+mod video_mode;
+
+fn status_to_result(status: Status) -> Result<usize> {
+    match status.branch() {
+        ControlFlow::Continue(ok) => Ok(ok),
+        ControlFlow::Break(err) => Err(err),
+    }
+}
+
+pub struct OsEfi {
+    st: &'static SystemTable,
+}
+
+impl Os<
+    DiskEfi,
+    MemoryMapIter,
+    VideoModeIter
+> for OsEfi {
+    #[cfg(target_arch = "aarch64")]
+    fn name(&self) -> &str {
+        "aarch64/UEFI"
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    fn name(&self) -> &str {
+        "x86_64/UEFI"
+    }
+
+    fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8 {
+        assert!(size != 0);
+
+        let page_size = self.page_size();
+        let pages = (size + page_size - 1) / page_size;
+
+        let ptr = {
+            let mut ptr = 0;
+            status_to_result(
+                (self.st.BootServices.AllocatePages)(
+                    0, // AllocateAnyPages
+                    MemoryType::EfiRuntimeServicesData, // Keeps this memory out of free space list
+                    pages,
+                    &mut ptr
+                )
+            ).unwrap();
+            ptr as *mut u8
+        };
+
+        assert!(!ptr.is_null());
+        unsafe { ptr::write_bytes(ptr, 0, pages * page_size) };
+        ptr
+    }
+
+    fn page_size(&self) -> usize {
+        4096
+    }
+
+    fn filesystem(&self) -> redoxfs::FileSystem<DiskEfi> {
+        for (i, block_io) in DiskEfi::all().into_iter().enumerate() {
+            if !block_io.0.Media.LogicalPartition {
+                continue;
+            }
+
+            match redoxfs::FileSystem::open(block_io, Some(0)) {
+                Ok(ok) => return ok,
+                Err(err) => match err.errno {
+                    // Ignore header not found error
+                    syscall::ENOENT => (),
+                    // Print any other errors
+                    _ => log::error!("Failed to open RedoxFS on block I/O {}: {}", i, err),
+                }
+            }
+        }
+        panic!("Failed to find RedoxFS");
+    }
+
+    fn memory(&self) -> MemoryMapIter {
+        MemoryMapIter::new()
+    }
+
+    fn video_modes(&self) -> VideoModeIter {
+        VideoModeIter::new()
+    }
+
+    fn set_video_mode(&self, mode: &mut OsVideoMode) {
+        let output = Output::one().unwrap();
+        status_to_result(
+            (output.0.SetMode)(output.0, mode.id)
+        ).unwrap();
+
+        // Update frame buffer base
+        mode.base = output.0.Mode.FrameBufferBase as u64;
+    }
+
+    fn best_resolution(&self) -> Option<(u32, u32)> {
+        //TODO: get this per output
+        match EdidActive::one() {
+            Ok(efi_edid) => {
+                let edid = unsafe {
+                    slice::from_raw_parts(efi_edid.0.Edid, efi_edid.0.SizeOfEdid as usize)
+                };
+
+                Some((
+                    (edid[0x38] as u32) | (((edid[0x3A] as u32) & 0xF0) << 4),
+                    (edid[0x3B] as u32) | (((edid[0x3D] as u32) & 0xF0) << 4),
+                ))
+            },
+            Err(err) => {
+                log::warn!("Failed to get EFI EDID: {:?}", err);
+
+                // Fallback to the current output resolution
+                match Output::one() {
+                    Ok(output) => {
+                        Some((
+                            output.0.Mode.Info.HorizontalResolution,
+                            output.0.Mode.Info.VerticalResolution,
+                        ))
+                    },
+                    Err(err) => {
+                        log::error!("Failed to get output: {:?}", err);
+                        None
+                    }
+                }
+            }
+        }
+    }
+
+    fn get_key(&self) -> OsKey {
+        //TODO: do not unwrap
+
+        let mut index = 0;
+        status_to_result(
+            (self.st.BootServices.WaitForEvent)(1, &self.st.ConsoleIn.WaitForKey, &mut index)
+        ).unwrap();
+
+        let mut key = TextInputKey {
+            ScanCode: 0,
+            UnicodeChar: 0
+        };
+        status_to_result(
+            (self.st.ConsoleIn.ReadKeyStroke)(self.st.ConsoleIn, &mut key)
+        ).unwrap();
+
+        match key.ScanCode {
+            0 => match key.UnicodeChar {
+                13 => OsKey::Enter,
+                _ => OsKey::Other,
+            },
+            1 => OsKey::Up,
+            2 => OsKey::Down,
+            3 => OsKey::Right,
+            4 => OsKey::Left,
+            _ => OsKey::Other,
+        }
+    }
+
+    fn get_text_position(&self) -> (usize, usize) {
+        (
+            self.st.ConsoleOut.Mode.CursorColumn as usize,
+            self.st.ConsoleOut.Mode.CursorRow as usize,
+        )
+    }
+
+    fn set_text_position(&self, x: usize, y: usize) {
+        status_to_result(
+            (self.st.ConsoleOut.SetCursorPosition)(self.st.ConsoleOut, x, y)
+        ).unwrap();
+    }
+
+    fn set_text_highlight(&self, highlight: bool) {
+        let attr = if highlight { 0x70 } else { 0x07 };
+        status_to_result(
+            (self.st.ConsoleOut.SetAttribute)(self.st.ConsoleOut, attr)
+        ).unwrap();
+    }
+}
 
 fn set_max_mode(output: &uefi::text::TextOutput) -> Result<()> {
     let mut max_i = None;

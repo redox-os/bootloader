@@ -47,7 +47,6 @@ $(BUILD)/harddrive.bin: $(BUILD)/bootloader.bin $(BUILD)/filesystem.bin
 qemu: $(BUILD)/harddrive.bin
 	$(QEMU) \
 		-d cpu_reset \
-		-d guest_errors \
 		-no-reboot \
 		-smp 4 -m 2048 \
 		-chardev stdio,id=debug,signal=off,mux=on \

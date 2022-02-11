@@ -56,7 +56,6 @@ $(BUILD)/firmware.rom:
 qemu: $(BUILD)/harddrive.bin $(BUILD)/firmware.rom
 	$(QEMU) \
 		-d cpu_reset \
-		-d guest_errors \
 		-no-reboot \
 		-smp 4 -m 2048 \
 		-chardev stdio,id=debug,signal=off,mux=on \

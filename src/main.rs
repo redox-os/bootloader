@@ -59,7 +59,6 @@ impl<'a> Write for SliceWriter<'a> {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
 #[repr(packed)]
 pub struct KernelArgs {
     kernel_base: u64,
@@ -81,25 +80,11 @@ pub struct KernelArgs {
     acpi_rsdps_size: u64,
 }
 
-fn main<
+fn select_mode<
     D: Disk,
     M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, M, V>) -> (usize, KernelArgs) {
-    println!("Redox OS Bootloader {} on {}", env!("CARGO_PKG_VERSION"), os.name());
-
-    let mut fs = os.filesystem();
-
-    print!("RedoxFS ");
-    for i in 0..fs.header.1.uuid.len() {
-        if i == 4 || i == 6 || i == 8 || i == 10 {
-            print!("-");
-        }
-
-        print!("{:>02x}", fs.header.1.uuid[i]);
-    }
-    println!(": {} MiB", fs.header.1.size / MIBI as u64);
-
+>(os: &mut dyn Os<D, M, V>) -> Option<OsVideoMode> {
     let mut modes = Vec::new();
     for mode in os.video_modes() {
         let mut aspect_w = mode.width;
@@ -115,6 +100,10 @@ fn main<
             mode,
             format!("{:>4}x{:<4} {:>3}:{:<3}", mode.width, mode.height, aspect_w, aspect_h)
         ));
+    }
+
+    if modes.is_empty() {
+        return None;
     }
 
     // Sort modes by pixel area, reversed
@@ -226,6 +215,30 @@ fn main<
     os.set_text_position(0, off_y + rows);
     os.set_text_highlight(false);
     println!();
+
+    mode_opt
+}
+
+fn main<
+    D: Disk,
+    M: Iterator<Item=OsMemoryEntry>,
+    V: Iterator<Item=OsVideoMode>
+>(os: &mut dyn Os<D, M, V>) -> (usize, KernelArgs) {
+    println!("Redox OS Bootloader {} on {}", env!("CARGO_PKG_VERSION"), os.name());
+
+    let mut fs = os.filesystem();
+
+    print!("RedoxFS ");
+    for i in 0..fs.header.1.uuid.len() {
+        if i == 4 || i == 6 || i == 8 || i == 10 {
+            print!("-");
+        }
+
+        print!("{:>02x}", fs.header.1.uuid[i]);
+    }
+    println!(": {} MiB", fs.header.1.size / MIBI as u64);
+
+    let mode_opt = select_mode(os);
 
     let stack_size = 128 * KIBI;
     let stack_base = os.alloc_zeroed_page_aligned(stack_size);
