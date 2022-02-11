@@ -219,7 +219,20 @@ impl Os<
             },
             Err(err) => {
                 log::warn!("Failed to get EFI EDID: {:?}", err);
-                None
+
+                // Fallback to the current output resolution
+                match Output::one() {
+                    Ok(output) => {
+                        Some((
+                            output.0.Mode.Info.HorizontalResolution,
+                            output.0.Mode.Info.VerticalResolution,
+                        ))
+                    },
+                    Err(err) => {
+                        log::error!("Failed to get output: {:?}", err);
+                        None
+                    }
+                }
             }
         }
     }
