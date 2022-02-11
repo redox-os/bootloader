@@ -51,6 +51,8 @@ pub trait Os<
     M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
 > {
+    fn name(&self) -> &str;
+    
     fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8;
 
     fn page_size(&self) -> usize;
@@ -61,6 +63,7 @@ pub trait Os<
 
     fn video_modes(&self) -> V;
     fn set_video_mode(&self, mode: &mut OsVideoMode);
+    fn best_resolution(&self) -> Option<(u32, u32)>;
 
     fn get_key(&self) -> OsKey;
 

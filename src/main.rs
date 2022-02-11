@@ -86,7 +86,7 @@ fn main<
     M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
 >(os: &mut dyn Os<D, M, V>) -> (usize, KernelArgs) {
-    println!("Redox OS Bootloader {}", env!("CARGO_PKG_VERSION"));
+    println!("Redox OS Bootloader {} on {}", env!("CARGO_PKG_VERSION"), os.name());
 
     let mut fs = os.filesystem();
 
@@ -120,6 +120,18 @@ fn main<
     // Sort modes by pixel area, reversed
     modes.sort_by(|a, b| (b.0.width * b.0.height).cmp(&(a.0.width * a.0.height)));
 
+    // Set selected based on best resolution
+    let mut selected = modes.get(0).map_or(0, |x| x.0.id);
+    if let Some((best_width, best_height)) = os.best_resolution() {
+        println!("Best resolution: {}x{}", best_width, best_height);
+        for (mode, _text) in modes.iter() {
+            if mode.width == best_width && mode.height == best_height {
+                selected = mode.id;
+                break;
+            }
+        }
+    }
+
     println!();
     println!("Arrow keys and enter select mode");
     println!();
@@ -127,8 +139,6 @@ fn main<
 
     let (off_x, off_y) = os.get_text_position();
     let rows = 12;
-    //TODO 0x4F03 VBE function to get current mode
-    let mut selected = modes.get(0).map_or(0, |x| x.0.id);
     let mut mode_opt = None;
     while ! modes.is_empty() {
         let mut row = 0;

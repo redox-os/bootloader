@@ -1,4 +1,4 @@
-use core::{mem, ops::{ControlFlow, Try}, ptr};
+use core::{mem, ops::{ControlFlow, Try}, ptr, slice};
 use std::proto::Protocol;
 use std::vec::Vec;
 use uefi::status::{Result, Status};
@@ -17,7 +17,7 @@ use crate::{
 
 use super::super::{
     disk::DiskEfi,
-    display::Output,
+    display::{EdidDiscovered, Output},
 };
 
 use self::memory_map::{MemoryMapIter, memory_map};
@@ -135,6 +135,10 @@ impl Os<
     MemoryMapIter,
     VideoModeIter
 > for OsEfi {
+    fn name(&self) -> &str {
+        "x86_64/UEFI"
+    }
+    
     fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8 {
         assert!(size != 0);
 
@@ -198,6 +202,26 @@ impl Os<
 
         // Update frame buffer base
         mode.base = output.0.Mode.FrameBufferBase as u64;
+    }
+
+    fn best_resolution(&self) -> Option<(u32, u32)> {
+        //TODO: get this per output
+        match EdidDiscovered::one() {
+            Ok(efi_edid) => {
+                let edid = unsafe {
+                    slice::from_raw_parts(efi_edid.0.Edid, efi_edid.0.SizeOfEdid as usize)
+                };
+
+                Some((
+                    (edid[0x38] as u32) | (((edid[0x3A] as u32) & 0xF0) << 4),
+                    (edid[0x3B] as u32) | (((edid[0x3D] as u32) & 0xF0) << 4),
+                ))
+            },
+            Err(err) => {
+                log::warn!("Failed to get EFI EDID: {:?}", err);
+                None
+            }
+        }
     }
 
     fn get_key(&self) -> OsKey {

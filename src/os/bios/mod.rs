@@ -2,6 +2,7 @@ use alloc::alloc::{alloc_zeroed, Layout};
 use core::{
     convert::TryFrom,
     ptr,
+    slice,
 };
 use linked_list_allocator::LockedHeap;
 use spin::Mutex;
@@ -31,8 +32,9 @@ mod vga;
 const DISK_BIOS_ADDR: usize = 0x1000; // 4096 bytes, ends at 0x1FFF
 const VBE_CARD_INFO_ADDR: usize = 0x2000; // 512 bytes, ends at 0x21FF
 const VBE_MODE_INFO_ADDR: usize = 0x2200; // 256 bytes, ends at 0x22FF
-const MEMORY_MAP_ADDR: usize = 0x2300; // 24 bytes, ends at 0x2317
-const DISK_ADDRESS_PACKET_ADDR: usize = 0x2318; // 16 bytes, ends at 0x2327
+const VBE_EDID_ADDR: usize = 0x2300; // 128 bytes, ends at 0x237F
+const MEMORY_MAP_ADDR: usize = 0x2380; // 24 bytes, ends at 0x2397
+const DISK_ADDRESS_PACKET_ADDR: usize = 0x2398; // 16 bytes, ends at 0x23A7
 const THUNK_STACK_ADDR: usize = 0x7C00; // Grows downwards
 const VGA_ADDR: usize = 0xB8000;
 
@@ -58,6 +60,10 @@ impl Os<
     MemoryMapIter,
     VideoModeIter
 > for OsBios {
+    fn name(&self) -> &str {
+        "x86/BIOS"
+    }
+
     fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8 {
         assert!(size != 0);
 
@@ -103,6 +109,30 @@ impl Os<
         data.ebx = mode.id;
         unsafe { data.with(self.thunk10); }
         //TODO: check result
+    }
+
+    fn best_resolution(&self) -> Option<(u32, u32)> {
+        let mut data = ThunkData::new();
+        data.eax = 0x4F15;
+        data.ebx = 0x01;
+        data.ecx = 0;
+        data.edx = 0;
+        data.edi = VBE_EDID_ADDR as u32;
+        unsafe { data.with(self.thunk10); }
+
+        if data.eax == 0x4F {
+            let edid = unsafe {
+                slice::from_raw_parts(VBE_EDID_ADDR as *const u8, 128)
+            };
+
+            Some((
+                (edid[0x38] as u32) | (((edid[0x3A] as u32) & 0xF0) << 4),
+                (edid[0x3B] as u32) | (((edid[0x3D] as u32) & 0xF0) << 4),
+            ))
+        } else {
+            log::warn!("Failed to get VBE EDID: 0x{:X}", data.eax);
+            None
+        }
     }
 
     fn get_key(&self) -> OsKey {
