@@ -51,7 +51,7 @@ $(BUILD)/harddrive.bin: $(BUILD)/esp.bin $(BUILD)/filesystem.bin
 	mv $@.partial $@
 
 $(BUILD)/firmware.rom:
-	wget https://releases.linaro.org/components/kernel/uefi-linaro/latest/release/qemu64/QEMU_EFI.fd -O $@
+	cp /usr/share/AAVMF/AAVMF_CODE.fd $@
 
 qemu: $(BUILD)/harddrive.bin $(BUILD)/firmware.rom
 	$(QEMU) \
@@ -61,6 +61,7 @@ qemu: $(BUILD)/harddrive.bin $(BUILD)/firmware.rom
 		-chardev stdio,id=debug,signal=off,mux=on \
 		-serial chardev:debug \
 		-mon chardev=debug \
+		-device virtio-gpu-pci \
 		-machine virt \
 		-net none \
 		-cpu max \

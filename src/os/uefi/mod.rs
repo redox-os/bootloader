@@ -27,18 +27,13 @@ use self::{
     video_mode::VideoModeIter,
 };
 
+mod acpi;
 mod arch;
 mod disk;
 mod display;
+mod dtb;
 mod memory_map;
 mod video_mode;
-
-fn status_to_result(status: Status) -> Result<usize> {
-    match status.branch() {
-        ControlFlow::Continue(ok) => Ok(ok),
-        ControlFlow::Break(err) => Err(err),
-    }
-}
 
 pub struct OsEfi {
     st: &'static SystemTable,
@@ -204,6 +199,20 @@ impl Os<
         status_to_result(
             (self.st.ConsoleOut.SetAttribute)(self.st.ConsoleOut, attr)
         ).unwrap();
+    }
+}
+
+unsafe fn exit_boot_services(key: usize) {
+    let handle = std::handle();
+    let uefi = std::system_table();
+
+    let _ = (uefi.BootServices.ExitBootServices)(handle, key);
+}
+
+fn status_to_result(status: Status) -> Result<usize> {
+    match status.branch() {
+        ControlFlow::Continue(ok) => Ok(ok),
+        ControlFlow::Break(err) => Err(err),
     }
 }
 
