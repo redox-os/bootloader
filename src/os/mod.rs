@@ -24,6 +24,7 @@ pub enum OsKey {
     Other,
 }
 
+// Keep synced with BootloaderMemoryKind in kernel
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u64)]
 pub enum OsMemoryKind {
@@ -33,6 +34,7 @@ pub enum OsMemoryKind {
     Reserved = 3,
 }
 
+// Keep synced with BootloaderMemoryEntry in kernel
 #[derive(Clone, Copy, Debug)]
 #[repr(packed)]
 pub struct OsMemoryEntry {
