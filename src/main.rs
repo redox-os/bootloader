@@ -22,13 +22,14 @@ use alloc::{
 use core::{
     cmp,
     fmt::{self, Write},
+    mem,
     slice,
     str,
 };
 use redoxfs::Disk;
 
 use self::arch::paging_create;
-use self::os::{Os, OsKey, OsMemoryEntry, OsVideoMode};
+use self::os::{Os, OsKey, OsMemoryEntry, OsMemoryKind, OsVideoMode};
 
 #[macro_use]
 mod os;
@@ -38,6 +39,13 @@ mod logger;
 
 const KIBI: usize = 1024;
 const MIBI: usize = KIBI * KIBI;
+
+//TODO: allocate this in a more reasonable manner
+pub static mut AREAS: [OsMemoryEntry; 512] = [OsMemoryEntry {
+    base: 0,
+    size: 0,
+    kind: OsMemoryKind::Null,
+}; 512];
 
 struct SliceWriter<'a> {
     slice: &'a mut [u8],
@@ -78,6 +86,9 @@ pub struct KernelArgs {
     acpi_rsdps_base: u64,
     /// The size of the RSDPs region.
     acpi_rsdps_size: u64,
+
+    areas_base: u64,
+    areas_size: u64,
 }
 
 fn select_mode<
@@ -366,6 +377,12 @@ fn main<
             env_size: env_size as u64,
             acpi_rsdps_base: 0,
             acpi_rsdps_size: 0,
+            areas_base: unsafe {
+                AREAS.as_ptr() as u64
+            },
+            areas_size: unsafe {
+                (AREAS.len() * mem::size_of::<OsMemoryEntry>()) as u64
+            },
         }
     )
 }

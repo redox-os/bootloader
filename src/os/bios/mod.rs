@@ -130,7 +130,7 @@ impl Os<
                 (edid[0x3B] as u32) | (((edid[0x3D] as u32) & 0xF0) << 4),
             ))
         } else {
-            log::warn!("Failed to get VBE EDID: 0x{:X}", data.eax);
+            log::warn!("Failed to get VBE EDID: 0x{:X}", { data.eax });
             None
         }
     }

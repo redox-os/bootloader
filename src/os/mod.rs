@@ -24,14 +24,17 @@ pub enum OsKey {
     Other,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u64)]
 pub enum OsMemoryKind {
-    Free,
-    Reclaim,
-    Reserved,
+    Null = 0,
+    Free = 1,
+    Reclaim = 2,
+    Reserved = 3,
 }
 
 #[derive(Clone, Copy, Debug)]
+#[repr(packed)]
 pub struct OsMemoryEntry {
     pub base: u64,
     pub size: u64,
@@ -52,7 +55,7 @@ pub trait Os<
     V: Iterator<Item=OsVideoMode>
 > {
     fn name(&self) -> &str;
-    
+
     fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8;
 
     fn page_size(&self) -> usize;

@@ -14,12 +14,11 @@ use super::super::{
         RSDPS_AREA,
         find_acpi_table_pointers,
     },
+    memory_map::memory_map,
 };
 
-use self::memory_map::memory_map;
 use self::paging::paging_enter;
 
-mod memory_map;
 mod paging;
 
 static PHYS_OFFSET: u64 = 0xFFFF800000000000;

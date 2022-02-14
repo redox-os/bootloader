@@ -52,6 +52,7 @@ impl Iterator for MemoryMapIter {
             base: entry.base,
             size: entry.size,
             kind: match entry.kind {
+                0 => OsMemoryKind::Null,
                 1 => OsMemoryKind::Free,
                 3 => OsMemoryKind::Reclaim,
                 _ => OsMemoryKind::Reserved,
@@ -62,23 +63,11 @@ impl Iterator for MemoryMapIter {
 
 pub unsafe fn memory_map(thunk15: extern "C" fn()) -> Option<(usize, usize)> {
     let mut heap_limits = None;
-    let mut data = ThunkData::new();
-    loop {
-        data.eax = 0xE820;
-        data.ecx = mem::size_of::<MemoryMapEntry>() as u32;
-        data.edx = 0x534D4150;
-        data.edi = MEMORY_MAP_ADDR as u32;
-
-        data.with(thunk15);
-
-        assert_eq!({ data.eax }, 0x534D4150);
-        assert_eq!({ data.ecx }, mem::size_of::<MemoryMapEntry>() as u32);
-        let entry = ptr::read(MEMORY_MAP_ADDR as *const MemoryMapEntry);
-
+    for (i, entry) in MemoryMapIter::new(thunk15).enumerate() {
         //TODO: There is a problem with QEMU crashing if we write at about 8 MiB, so skip to 16
         let heap_start = 16 * 1024 * 1024;
         if
-            entry.kind == 1 &&
+            { entry.kind } == OsMemoryKind::Free &&
             entry.base <= heap_start as u64 &&
             (entry.base + entry.size) >= heap_start as u64
         {
@@ -94,8 +83,7 @@ pub unsafe fn memory_map(thunk15: extern "C" fn()) -> Option<(usize, usize)> {
             }
         }
 
-        if data.ebx == 0 {
-            return heap_limits;
-        }
+        crate::AREAS[i] = entry;
     }
+    heap_limits
 }
