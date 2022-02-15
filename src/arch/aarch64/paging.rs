@@ -23,7 +23,7 @@ pub unsafe fn paging_create<
     D: Disk,
     M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, M, V>, kernel_phys: usize) -> Option<usize> {
+>(os: &mut dyn Os<D, M, V>, kernel_phys: usize, kernel_base: usize) -> Option<usize> {
     log::error!("paging_create not implemented for aarch64");
     None
 }

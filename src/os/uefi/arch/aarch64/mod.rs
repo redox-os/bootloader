@@ -9,7 +9,6 @@ use crate::{
 
 use super::super::{
     OsEfi,
-    exit_boot_services,
     acpi::{
         RSDPS_AREA,
         find_acpi_table_pointers,
@@ -35,8 +34,12 @@ unsafe extern "C" fn kernel_entry(
     args: *const KernelArgs,
 ) -> ! {
     // Read memory map and exit boot services
-    let key = memory_map();
-    exit_boot_services(key);
+    {
+        let mut memory_iter = memory_map();
+        memory_iter.exit_boot_services();
+        memory_iter.set_virtual_address_map(PHYS_OFFSET);
+        mem::forget(memory_iter);
+    }
 
     // Disable interrupts
     asm!("msr daifset, #2");
