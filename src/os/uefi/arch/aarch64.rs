@@ -16,10 +16,6 @@ use super::super::{
     memory_map::memory_map,
 };
 
-use self::paging::paging;
-
-mod paging;
-
 static PHYS_OFFSET: u64 = 0xFFFF800000000000;
 
 #[no_mangle]
@@ -44,8 +40,14 @@ unsafe extern "C" fn kernel_entry(
     // Disable interrupts
     asm!("msr daifset, #2");
 
-    // Enable paging
-    paging();
+    // Disable MMU
+    asm!(
+        "mrs     x0, sctlr_el1",
+        "bic     x0, x0, 1",
+        "msr     sctlr_el1, x0",
+        "isb",
+        lateout("x0") _
+    );
 
     //TODO: Set stack
 

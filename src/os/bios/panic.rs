@@ -14,7 +14,7 @@ pub extern "C" fn rust_begin_unwind(info: &PanicInfo) -> ! {
     unsafe {
         println!("BOOTLOADER PANIC:\n{}", info);
         loop {
-            llvm_asm!("hlt" : : : : "intel", "volatile");
+            asm!("hlt");
         }
     }
 }
@@ -32,7 +32,7 @@ pub extern fn rust_oom(_layout: Layout) -> ! {
 pub extern "C" fn _Unwind_Resume() -> ! {
     loop {
         unsafe {
-            llvm_asm!("hlt" : : : : "intel", "volatile");
+            asm!("hlt");
         }
     }
 }

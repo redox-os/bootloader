@@ -1,7 +1,6 @@
 #![no_std]
 #![feature(asm)]
 #![feature(lang_items)]
-#![feature(llvm_asm)]
 #![cfg_attr(
     target_os = "uefi",
     no_main,

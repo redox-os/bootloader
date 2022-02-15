@@ -1,6 +1,10 @@
 use core::{mem, ptr};
 use std::vec::Vec;
 use uefi::status::Result;
+use x86::{
+    controlregs::{self, Cr0, Cr4},
+    msr,
+};
 
 use crate::{
     KernelArgs,
@@ -15,10 +19,6 @@ use super::super::{
     },
     memory_map::memory_map,
 };
-
-use self::paging::paging_enter;
-
-mod paging;
 
 static PHYS_OFFSET: u64 = 0xFFFF800000000000;
 
@@ -37,13 +37,32 @@ unsafe extern "C" fn kernel_entry(
     }
 
     // Disable interrupts
-    llvm_asm!("cli" : : : "memory" : "intel", "volatile");
+    asm!("cli");
 
-    // Enable paging
-    paging_enter(page_phys as u64);
+    // Enable OSXSAVE, FXSAVE/FXRSTOR, Page Global, Page Address Extension, and Page Size Extension
+    let mut cr4 = controlregs::cr4();
+    cr4 |= Cr4::CR4_ENABLE_OS_XSAVE
+        | Cr4::CR4_ENABLE_SSE
+        | Cr4::CR4_ENABLE_GLOBAL_PAGES
+        | Cr4::CR4_ENABLE_PAE
+        | Cr4::CR4_ENABLE_PSE;
+    controlregs::cr4_write(cr4);
+
+    // Enable Long mode and NX bit
+    let mut efer = msr::rdmsr(msr::IA32_EFER);
+    efer |= 1 << 11 | 1 << 8;
+    msr::wrmsr(msr::IA32_EFER, efer);
+
+    // Set new page map
+    controlregs::cr3_write(page_phys as u64);
+
+    // Enable paging, write protect kernel, protected mode
+    let mut cr0 = controlregs::cr0();
+    cr0 |= Cr0::CR0_ENABLE_PAGING | Cr0::CR0_WRITE_PROTECT | Cr0::CR0_PROTECTED_MODE;
+    controlregs::cr0_write(cr0);
 
     // Set stack
-    llvm_asm!("mov rsp, $0" : : "r"(stack) : "memory" : "intel", "volatile");
+    asm!("mov rsp, {}", in(reg) stack);
 
     // Call kernel entry
     let entry_fn: extern "sysv64" fn(*const KernelArgs) -> ! = mem::transmute(func);
