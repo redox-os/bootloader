@@ -291,7 +291,7 @@ fn main<
         kernel
     };
 
-    let page_phys = unsafe { paging_create(os, kernel.as_ptr() as usize) }
+    let page_phys = unsafe { paging_create(os, kernel.as_ptr() as usize, kernel.len()) }
         .expect("Failed to set up paging");
     //TODO: properly reserve page table allocations so kernel does not re-use them
 
