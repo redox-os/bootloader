@@ -18,7 +18,7 @@ impl Protocol<UefiBlockIo> for DiskEfi {
 }
 
 impl Disk for DiskEfi {
-    fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> Result<usize> {
+    unsafe fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> Result<usize> {
         let block_size = self.0.Media.BlockSize as u64;
 
         let lba = block * BLOCK_SIZE / block_size;
@@ -32,7 +32,7 @@ impl Disk for DiskEfi {
         }
     }
 
-    fn write_at(&mut self, block: u64, _buffer: &[u8]) -> Result<usize> {
+    unsafe fn write_at(&mut self, block: u64, _buffer: &[u8]) -> Result<usize> {
         println!("DiskEfi::write_at 0x{:X} not implemented", block);
         Err(Error::new(EIO))
     }

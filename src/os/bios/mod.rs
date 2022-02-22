@@ -90,7 +90,7 @@ impl Os<
 
         //TODO: get block from partition table
         let block = crate::MIBI as u64 / redoxfs::BLOCK_SIZE;
-        redoxfs::FileSystem::open(disk, Some(block))
+        redoxfs::FileSystem::open(disk, Some(block), false)
             .expect("Failed to open RedoxFS")
     }
 

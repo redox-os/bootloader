@@ -42,7 +42,7 @@ impl DiskBios {
 }
 
 impl Disk for DiskBios {
-    fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> Result<usize> {
+    unsafe fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> Result<usize> {
         for (i, chunk) in buffer.chunks_mut(BLOCK_SIZE as usize).enumerate() {
             unsafe {
                 let mut dap = DiskAddressPacket::from_block(block + i as u64);
@@ -68,7 +68,7 @@ impl Disk for DiskBios {
         Ok(buffer.len())
     }
 
-    fn write_at(&mut self, block: u64, buffer: &[u8]) -> Result<usize> {
+    unsafe fn write_at(&mut self, block: u64, buffer: &[u8]) -> Result<usize> {
         log::error!(
             "DiskBios::write_at(0x{:X}, 0x{:X}:0x{:X}) not allowed",
             block,

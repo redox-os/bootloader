@@ -239,14 +239,14 @@ fn main<
     let mut fs = os.filesystem();
 
     print!("RedoxFS ");
-    for i in 0..fs.header.1.uuid.len() {
+    for i in 0..fs.header.uuid().len() {
         if i == 4 || i == 6 || i == 8 || i == 10 {
             print!("-");
         }
 
-        print!("{:>02x}", fs.header.1.uuid[i]);
+        print!("{:>02x}", fs.header.uuid()[i]);
     }
-    println!(": {} MiB", fs.header.1.size / MIBI as u64);
+    println!(": {} MiB", fs.header.size() / MIBI as u64);
 
     let mode_opt = select_mode(os);
 
@@ -256,12 +256,11 @@ fn main<
         panic!("Failed to allocate memory for stack");
     }
 
-    let kernel = {
-        let node = fs.find_node("kernel", fs.header.1.root)
+    let kernel = fs.tx(|tx| {
+        let node = tx.find_node(redoxfs::TreePtr::root(), "kernel")
             .expect("Failed to find kernel file");
 
-        let size = fs.node_len(node.0)
-            .expect("Failed to read kernel size");
+        let size = node.data().size();
 
         print!("Kernel: 0/{} MiB", size / MIBI as u64);
 
@@ -277,7 +276,7 @@ fn main<
         let mut i = 0;
         for chunk in kernel.chunks_mut(MIBI) {
             print!("\rKernel: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
-            i += fs.read_node(node.0, i, chunk, 0, 0)
+            i += tx.read_node_inner(&node, i, chunk)
                 .expect("Failed to read kernel file") as u64;
         }
         println!("\rKernel: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
@@ -287,15 +286,15 @@ fn main<
             panic!("Kernel has invalid magic number {:#X?}", magic);
         }
 
-        kernel
-    };
+        Ok(kernel)
+    }).expect("RedoxFS transaction failed");
 
     let page_phys = unsafe { paging_create(os, kernel.as_ptr() as usize, kernel.len()) }
         .expect("Failed to set up paging");
     //TODO: properly reserve page table allocations so kernel does not re-use them
 
     let live_opt = if cfg!(feature = "live") {
-        let size = fs.header.1.size;
+        let size = fs.header.size();
 
         print!("Live: 0/{} MiB", size / MIBI as u64);
 
@@ -311,8 +310,10 @@ fn main<
         let mut i = 0;
         for chunk in live.chunks_mut(MIBI) {
             print!("\rLive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
-            i += fs.disk.read_at(fs.block + i / redoxfs::BLOCK_SIZE, chunk)
-                .expect("Failed to read live disk") as u64;
+            i += unsafe {
+                fs.disk.read_at(fs.block + i / redoxfs::BLOCK_SIZE, chunk)
+                    .expect("Failed to read live disk") as u64
+            };
         }
         println!("\rLive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
 
@@ -344,12 +345,12 @@ fn main<
             writeln!(w, "REDOXFS_BLOCK={:016x}", fs.block).unwrap();
         }
         write!(w, "REDOXFS_UUID=").unwrap();
-        for i in 0..fs.header.1.uuid.len() {
+        for i in 0..fs.header.uuid().len() {
             if i == 4 || i == 6 || i == 8 || i == 10 {
                 write!(w, "-").unwrap();
             }
 
-            write!(w, "{:>02x}", fs.header.1.uuid[i]).unwrap();
+            write!(w, "{:>02x}", fs.header.uuid()[i]).unwrap();
         }
         writeln!(w).unwrap();
 
