@@ -10,17 +10,12 @@ stage2.entry:
     or al, 2
     out 0x92, al
 
-    ; load memory map
-    ;TODO: rewrite this in Rust
-    call memory_map
-
     mov dword [protected_mode.func], stage3.entry
     jmp protected_mode.entry
 
 %include "cpuid.asm"
 %include "gdt.asm"
 %include "long_mode.asm"
-%include "memory_map.asm"
 %include "protected_mode.asm"
 %include "thunk.asm"
 
