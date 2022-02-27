@@ -7,7 +7,16 @@ all: $(BUILD)/bootloader.bin
 
 $(BUILD)/libbootloader.a: Cargo.lock Cargo.toml $(shell find src -type f)
 	mkdir -p $(BUILD)
-	cargo rustc --lib --target $(TARGET) --release -- -C soft-float -C debuginfo=2 --emit link=$@
+	env RUSTFLAGS="-C soft-float" \
+	cargo rustc \
+		-Z build-std=core,alloc \
+		-Z build-std-features=compiler-builtins-mem \
+		--target $(TARGET) \
+		--lib \
+		--release \
+		-- \
+		-C debuginfo=2 \
+		--emit link=$@
 
 $(BUILD)/bootloader.elf: linkers/$(TARGET).ld $(BUILD)/libbootloader.a
 	mkdir -p $(BUILD)
@@ -21,7 +30,17 @@ $(BUILD)/bootloader.bin: $(BUILD)/bootloader.elf $(shell find asm/$(TARGET) -typ
 
 $(BUILD)/libbootloader-live.a: Cargo.lock Cargo.toml $(shell find src -type f)
 	mkdir -p $(BUILD)
-	cargo rustc --lib --target $(TARGET) --release --features live -- -C soft-float -C debuginfo=2 --emit link=$@
+	env RUSTFLAGS="-C soft-float" \
+	cargo rustc \
+		-Z build-std=core,alloc \
+		-Z build-std-features=compiler-builtins-mem \
+		--target $(TARGET) \
+		--lib \
+		--release \
+		--features live \
+		-- \
+		-C debuginfo=2 \
+		--emit link=$@
 
 $(BUILD)/bootloader-live.elf: linkers/$(TARGET).ld $(BUILD)/libbootloader-live.a
 	mkdir -p $(BUILD)
