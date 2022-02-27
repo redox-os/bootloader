@@ -88,7 +88,7 @@ impl Os<
                 continue;
             }
 
-            match redoxfs::FileSystem::open(block_io, Some(0), false) {
+            match redoxfs::FileSystem::open(block_io, None, Some(0), false) {
                 Ok(ok) => return ok,
                 Err(err) => match err.errno {
                     // Ignore header not found error

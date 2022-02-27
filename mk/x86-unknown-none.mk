@@ -15,7 +15,6 @@ $(BUILD)/libbootloader.a: Cargo.lock Cargo.toml $(shell find src -type f)
 		--lib \
 		--release \
 		-- \
-		-C debuginfo=2 \
 		--emit link=$@
 
 $(BUILD)/bootloader.elf: linkers/$(TARGET).ld $(BUILD)/libbootloader.a
@@ -39,7 +38,6 @@ $(BUILD)/libbootloader-live.a: Cargo.lock Cargo.toml $(shell find src -type f)
 		--release \
 		--features live \
 		-- \
-		-C debuginfo=2 \
 		--emit link=$@
 
 $(BUILD)/bootloader-live.elf: linkers/$(TARGET).ld $(BUILD)/libbootloader-live.a
