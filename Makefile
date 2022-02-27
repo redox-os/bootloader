@@ -5,7 +5,7 @@ export RUST_TARGET_PATH=$(CURDIR)/targets
 include mk/$(TARGET).mk
 
 clean:
-	rm -rf build
+	rm -rf build target
 
 $(BUILD)/filesystem:
 	mkdir -p $(BUILD)
