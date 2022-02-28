@@ -82,23 +82,25 @@ impl Os<
         4096
     }
 
-    fn filesystem(&self) -> redoxfs::FileSystem<DiskEfi> {
+    fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<DiskEfi>> {
         for (i, block_io) in DiskEfi::all().into_iter().enumerate() {
             if !block_io.0.Media.LogicalPartition {
                 continue;
             }
 
-            match redoxfs::FileSystem::open(block_io, None, Some(0), false) {
-                Ok(ok) => return ok,
+            match redoxfs::FileSystem::open(block_io, password_opt, Some(0), false) {
+                Ok(ok) => return Ok(ok),
                 Err(err) => match err.errno {
                     // Ignore header not found error
                     syscall::ENOENT => (),
-                    // Print any other errors
-                    _ => log::error!("Failed to open RedoxFS on block I/O {}: {}", i, err),
+                    // Return any other errors
+                    _ => {
+                        return Err(err)
+                    }
                 }
             }
         }
-        panic!("Failed to find RedoxFS");
+        Err(syscall::Error::new(syscall::ENOENT))
     }
 
     fn memory(&self) -> MemoryMapIter {
@@ -170,13 +172,18 @@ impl Os<
 
         match key.ScanCode {
             0 => match key.UnicodeChar {
+                8 => OsKey::Backspace,
                 13 => OsKey::Enter,
-                _ => OsKey::Other,
+                w => match char::from_u32(w as u32) {
+                    Some(c) => OsKey::Char(c),
+                    None => OsKey::Other,
+                },
             },
             1 => OsKey::Up,
             2 => OsKey::Down,
             3 => OsKey::Right,
             4 => OsKey::Left,
+            8 => OsKey::Delete,
             _ => OsKey::Other,
         }
     }

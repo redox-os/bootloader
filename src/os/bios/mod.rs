@@ -85,13 +85,12 @@ impl Os<
         4096
     }
 
-    fn filesystem(&self) -> redoxfs::FileSystem<DiskBios> {
+    fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<DiskBios>> {
         let disk = DiskBios::new(u8::try_from(self.boot_disk).unwrap(), self.thunk13);
 
         //TODO: get block from partition table
         let block = crate::MIBI as u64 / redoxfs::BLOCK_SIZE;
-        redoxfs::FileSystem::open(disk, None, Some(block), false)
-            .expect("Failed to open RedoxFS")
+        redoxfs::FileSystem::open(disk, password_opt, Some(block), false)
     }
 
     fn memory(&self) -> MemoryMapIter {
@@ -144,8 +143,13 @@ impl Os<
             0x4D => OsKey::Right,
             0x48 => OsKey::Up,
             0x50 => OsKey::Down,
+            0x0E => OsKey::Backspace,
+            0x53 => OsKey::Delete,
             0x1C => OsKey::Enter,
-            _ => OsKey::Other,
+            _ => match data.eax as u8 {
+                0 => OsKey::Other,
+                b => OsKey::Char(b as char),
+            }
         }
     }
 

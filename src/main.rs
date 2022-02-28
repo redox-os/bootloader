@@ -16,6 +16,7 @@ extern crate alloc;
 extern crate uefi_std as std;
 
 use alloc::{
+    string::String,
     vec::Vec,
 };
 use core::{
@@ -229,6 +230,57 @@ fn select_mode<
     mode_opt
 }
 
+fn redoxfs<
+    D: Disk,
+    M: Iterator<Item=OsMemoryEntry>,
+    V: Iterator<Item=OsVideoMode>
+>(os: &mut dyn Os<D, M, V>) -> redoxfs::FileSystem<D> {
+    let attempts = 10;
+    for attempt in 0..=attempts {
+        let mut password_opt = None;
+        if attempt > 0 {
+            print!("\rRedoxFS password ({}/{}): ", attempt, attempts);
+
+            let mut password = String::new();
+
+            loop {
+                match os.get_key() {
+                    OsKey::Backspace | OsKey::Delete => if ! password.is_empty() {
+                        print!("\x08 \x08");
+                        password.pop();
+                    },
+                    OsKey::Char(c) => {
+                        print!("*");
+                        password.push(c)
+                    },
+                    OsKey::Enter => break,
+                    _ => (),
+                }
+            }
+
+            // Erase password information
+            while os.get_text_position().0 > 0 {
+                print!("\x08 \x08");
+            }
+
+            if ! password.is_empty() {
+                password_opt = Some(password);
+            }
+        }
+        match os.filesystem(password_opt.as_ref().map(|x| x.as_bytes())) {
+            Ok(fs) => return fs,
+            Err(err) => match err.errno {
+                // Incorrect password, try again
+                syscall::ENOKEY => (),
+                _ => {
+                    panic!("Failed to open RedoxFS: {}", err);
+                }
+            }
+        }
+    }
+    panic!("RedoxFS out of unlock attempts");
+}
+
 fn main<
     D: Disk,
     M: Iterator<Item=OsMemoryEntry>,
@@ -236,7 +288,7 @@ fn main<
 >(os: &mut dyn Os<D, M, V>) -> (usize, KernelArgs) {
     println!("Redox OS Bootloader {} on {}", env!("CARGO_PKG_VERSION"), os.name());
 
-    let mut fs = os.filesystem();
+    let mut fs = redoxfs(os);
 
     print!("RedoxFS ");
     for i in 0..fs.header.uuid().len() {

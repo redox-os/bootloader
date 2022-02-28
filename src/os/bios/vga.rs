@@ -94,6 +94,9 @@ impl fmt::Write for Vga {
                 self.y -= 1;
             }
             match c {
+                '\x08' => if self.x > 0 {
+                    self.x -= 1;
+                },
                 '\r' => {
                     self.x = 0;
                 },
