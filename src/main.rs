@@ -234,7 +234,7 @@ fn redoxfs<
     D: Disk,
     M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, M, V>) -> redoxfs::FileSystem<D> {
+>(os: &mut dyn Os<D, M, V>) -> (redoxfs::FileSystem<D>, Option<String>) {
     let attempts = 10;
     for attempt in 0..=attempts {
         let mut password_opt = None;
@@ -268,7 +268,7 @@ fn redoxfs<
             }
         }
         match os.filesystem(password_opt.as_ref().map(|x| x.as_bytes())) {
-            Ok(fs) => return fs,
+            Ok(fs) => return (fs, password_opt),
             Err(err) => match err.errno {
                 // Incorrect password, try again
                 syscall::ENOKEY => (),
@@ -288,7 +288,7 @@ fn main<
 >(os: &mut dyn Os<D, M, V>) -> (usize, KernelArgs) {
     println!("Redox OS Bootloader {} on {}", env!("CARGO_PKG_VERSION"), os.name());
 
-    let mut fs = redoxfs(os);
+    let (mut fs, password_opt) = redoxfs(os);
 
     print!("RedoxFS ");
     for i in 0..fs.header.uuid().len() {
@@ -405,6 +405,12 @@ fn main<
             write!(w, "{:>02x}", fs.header.uuid()[i]).unwrap();
         }
         writeln!(w).unwrap();
+        if let Some(password) = password_opt {
+            //TODO: copy to reserved page
+            writeln!(w, "REDOXFS_PASSWORD_ADDR={:016x}", password.as_ptr() as usize).unwrap();
+            writeln!(w, "REDOXFS_PASSWORD_SIZE={:016x}", password.len()).unwrap();
+            mem::forget(password);
+        }
 
         if let Some(mut mode) = mode_opt {
             // Set mode to get updated values
