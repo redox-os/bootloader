@@ -1,5 +1,4 @@
 use core::{mem, ptr};
-use std::vec::Vec;
 use uefi::status::Result;
 use x86::{
     controlregs::{self, Cr0, Cr4},
@@ -14,7 +13,8 @@ use crate::{
 use super::super::{
     OsEfi,
     acpi::{
-        RSDPS_AREA,
+        RSDPS_AREA_BASE,
+        RSDPS_AREA_SIZE,
         find_acpi_table_pointers,
     },
     memory_map::memory_map,
@@ -72,17 +72,20 @@ unsafe extern "C" fn kernel_entry(
 pub fn main() -> Result<()> {
     LOGGER.init();
 
-    find_acpi_table_pointers();
-
     let mut os = OsEfi {
         st: std::system_table(),
     };
 
+    // Disable cursor
+    let _ = (os.st.ConsoleOut.EnableCursor)(os.st.ConsoleOut, false);
+
+    find_acpi_table_pointers(&mut os);
+
     let (page_phys, mut args) = crate::main(&mut os);
 
     unsafe {
-        args.acpi_rsdps_base = RSDPS_AREA.as_ref().map(Vec::as_ptr).unwrap_or(core::ptr::null()) as usize as u64 + PHYS_OFFSET;
-        args.acpi_rsdps_size = RSDPS_AREA.as_ref().map(Vec::len).unwrap_or(0) as u64;
+        args.acpi_rsdps_base = RSDPS_AREA_BASE as u64;
+        args.acpi_rsdps_size = RSDPS_AREA_SIZE as u64;
 
         kernel_entry(
             page_phys,

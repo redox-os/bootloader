@@ -59,10 +59,11 @@ impl Os<
         let pages = (size + page_size - 1) / page_size;
 
         let ptr = {
-            let mut ptr = 0;
+            // Max address mapped by src/arch paging code (8 GiB)
+            let mut ptr = 0x2_0000_0000;
             status_to_result(
                 (self.st.BootServices.AllocatePages)(
-                    0, // AllocateAnyPages
+                    1, // AllocateMaxAddress
                     MemoryType::EfiRuntimeServicesData, // Keeps this memory out of free space list
                     pages,
                     &mut ptr

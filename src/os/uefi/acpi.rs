@@ -1,7 +1,10 @@
-use std::vec::Vec;
+use std::{slice, vec::Vec};
 use uefi::guid::GuidKind;
 
-pub(crate) static mut RSDPS_AREA: Option<Vec<u8>> = None;
+use crate::{Disk, Os, OsVideoMode};
+
+pub(crate) static mut RSDPS_AREA_BASE: *mut u8 = 0 as *mut u8;
+pub(crate) static mut RSDPS_AREA_SIZE: usize = 0;
 
 struct Invalid;
 
@@ -53,11 +56,11 @@ fn validate_rsdp(address: usize, v2: bool) -> core::result::Result<usize, Invali
     Ok(length)
 }
 
-pub(crate) fn find_acpi_table_pointers() {
-    let rsdps_area = unsafe {
-        RSDPS_AREA = Some(Vec::new());
-        RSDPS_AREA.as_mut().unwrap()
-    };
+pub(crate) fn find_acpi_table_pointers<
+    D: Disk,
+    V: Iterator<Item=OsVideoMode>
+>(os: &mut dyn Os<D, V>) {
+    let mut rsdps_area = Vec::new();
 
     let cfg_tables = std::system_table().config_tables();
 
@@ -79,6 +82,18 @@ pub(crate) fn find_acpi_table_pointers() {
                 rsdps_area.resize(((rsdps_area.len() + (align - 1)) / align) * align, 0u8);
             }
             Err(_) => log::warn!("Found RSDP that was not valid at {:p}", address as *const u8),
+        }
+    }
+
+    if ! rsdps_area.is_empty() {
+        unsafe {
+            // Copy to page aligned area
+            RSDPS_AREA_SIZE = rsdps_area.len();
+            RSDPS_AREA_BASE = os.alloc_zeroed_page_aligned(RSDPS_AREA_SIZE);
+            slice::from_raw_parts_mut(
+                RSDPS_AREA_BASE,
+                RSDPS_AREA_SIZE
+            ).copy_from_slice(&rsdps_area);
         }
     }
 }
