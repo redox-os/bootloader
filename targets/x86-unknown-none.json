@@ -9,6 +9,7 @@
     "env": "",
     "vendor": "unknown",
     "linker-flavor": "gcc",
+    "panic-strategy": "abort",
     "pre-link-args": {
         "gcc": ["-m32", "-nostdlib", "-static"]
     },
