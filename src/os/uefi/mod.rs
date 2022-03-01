@@ -23,7 +23,6 @@ use crate::os::{
 use self::{
     disk::DiskEfi,
     display::{EdidActive, Output},
-    memory_map::MemoryMapIter,
     video_mode::VideoModeIter,
 };
 
@@ -41,7 +40,6 @@ pub struct OsEfi {
 
 impl Os<
     DiskEfi,
-    MemoryMapIter,
     VideoModeIter
 > for OsEfi {
     #[cfg(target_arch = "aarch64")]
@@ -101,10 +99,6 @@ impl Os<
             }
         }
         Err(syscall::Error::new(syscall::ENOENT))
-    }
-
-    fn memory(&self) -> MemoryMapIter {
-        MemoryMapIter::new()
     }
 
     fn video_modes(&self) -> VideoModeIter {

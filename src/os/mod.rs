@@ -56,7 +56,6 @@ pub struct OsVideoMode {
 
 pub trait Os<
     D: Disk,
-    M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
 > {
     fn name(&self) -> &str;
@@ -66,8 +65,6 @@ pub trait Os<
     fn page_size(&self) -> usize;
 
     fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<D>>;
-
-    fn memory(&self) -> M;
 
     fn video_modes(&self) -> V;
     fn set_video_mode(&self, mode: &mut OsVideoMode);

@@ -12,7 +12,7 @@ use crate::logger::LOGGER;
 use crate::os::{Os, OsKey, OsVideoMode};
 
 use self::disk::DiskBios;
-use self::memory_map::{memory_map, MemoryMapIter};
+use self::memory_map::memory_map;
 use self::thunk::ThunkData;
 use self::vbe::VideoModeIter;
 use self::vga::{VgaTextColor, Vga};
@@ -57,7 +57,6 @@ pub struct OsBios {
 
 impl Os<
     DiskBios,
-    MemoryMapIter,
     VideoModeIter
 > for OsBios {
     fn name(&self) -> &str {
@@ -91,10 +90,6 @@ impl Os<
         //TODO: get block from partition table
         let block = crate::MIBI as u64 / redoxfs::BLOCK_SIZE;
         redoxfs::FileSystem::open(disk, password_opt, Some(block), false)
-    }
-
-    fn memory(&self) -> MemoryMapIter {
-        MemoryMapIter::new(self.thunk15)
     }
 
     fn video_modes(&self) -> VideoModeIter {
@@ -212,11 +207,6 @@ pub unsafe extern "C" fn start(
     // Set logger
     LOGGER.init();
 
-    let (heap_start, heap_size) = memory_map(thunk15)
-        .expect("No memory for heap");
-
-    ALLOCATOR.lock().init(heap_start, heap_size);
-
     let mut os = OsBios {
         boot_disk,
         thunk10,
@@ -224,6 +214,11 @@ pub unsafe extern "C" fn start(
         thunk15,
         thunk16,
     };
+
+    let (heap_start, heap_size) = memory_map(os.thunk15)
+        .expect("No memory for heap");
+
+    ALLOCATOR.lock().init(heap_start, heap_size);
 
     let (page_phys, args) = crate::main(&mut os);
 

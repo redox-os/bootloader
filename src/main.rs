@@ -93,9 +93,8 @@ pub struct KernelArgs {
 
 fn select_mode<
     D: Disk,
-    M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, M, V>) -> Option<OsVideoMode> {
+>(os: &mut dyn Os<D, V>) -> Option<OsVideoMode> {
     let mut modes = Vec::new();
     for mode in os.video_modes() {
         let mut aspect_w = mode.width;
@@ -232,9 +231,8 @@ fn select_mode<
 
 fn redoxfs<
     D: Disk,
-    M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, M, V>) -> (redoxfs::FileSystem<D>, Option<String>) {
+>(os: &mut dyn Os<D, V>) -> (redoxfs::FileSystem<D>, Option<String>) {
     let attempts = 10;
     for attempt in 0..=attempts {
         let mut password_opt = None;
@@ -283,9 +281,8 @@ fn redoxfs<
 
 fn main<
     D: Disk,
-    M: Iterator<Item=OsMemoryEntry>,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, M, V>) -> (usize, KernelArgs) {
+>(os: &mut dyn Os<D, V>) -> (usize, KernelArgs) {
     println!("Redox OS Bootloader {} on {}", env!("CARGO_PKG_VERSION"), os.name());
 
     let (mut fs, password_opt) = redoxfs(os);
