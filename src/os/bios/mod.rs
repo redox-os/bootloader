@@ -8,6 +8,7 @@ use linked_list_allocator::LockedHeap;
 use spin::Mutex;
 
 use crate::KernelArgs;
+use crate::arch::PHYS_OFFSET;
 use crate::logger::LOGGER;
 use crate::os::{Os, OsKey, OsVideoMode};
 
@@ -37,8 +38,6 @@ const MEMORY_MAP_ADDR: usize = 0x2380; // 24 bytes, ends at 0x2397
 const DISK_ADDRESS_PACKET_ADDR: usize = 0x2398; // 16 bytes, ends at 0x23A7
 const THUNK_STACK_ADDR: usize = 0x7C00; // Grows downwards
 const VGA_ADDR: usize = 0xB8000;
-
-const PHYS_OFFSET: u64 = 0xFFFF800000000000;
 
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
