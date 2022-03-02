@@ -28,7 +28,7 @@ use core::{
 };
 use redoxfs::Disk;
 
-use self::arch::paging_create;
+use self::arch::{paging_create, paging_framebuffer};
 use self::os::{Os, OsKey, OsMemoryEntry, OsMemoryKind, OsVideoMode};
 
 #[macro_use]
@@ -338,8 +338,9 @@ fn main<
         Ok(kernel)
     }).expect("RedoxFS transaction failed");
 
-    let page_phys = unsafe { paging_create(os, kernel.as_ptr() as usize, kernel.len()) }
-        .expect("Failed to set up paging");
+    let page_phys = unsafe {
+        paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64)
+    }.expect("Failed to set up paging");
     //TODO: properly reserve page table allocations so kernel does not re-use them
 
     let live_opt = if cfg!(feature = "live") {
@@ -412,6 +413,15 @@ fn main<
         if let Some(mut mode) = mode_opt {
             // Set mode to get updated values
             os.set_video_mode(&mut mode);
+
+            unsafe {
+                paging_framebuffer(
+                    os,
+                    page_phys,
+                    mode.base,
+                    (mode.width * mode.height * 4) as u64
+                )
+            }.expect("Failed to map framebuffer");
 
             writeln!(w, "FRAMEBUFFER_ADDR={:016x}", mode.base).unwrap();
             writeln!(w, "FRAMEBUFFER_WIDTH={:016x}", mode.width).unwrap();

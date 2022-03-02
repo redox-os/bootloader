@@ -3,6 +3,8 @@ use redoxfs::Disk;
 
 use crate::os::{Os, OsVideoMode};
 
+pub(crate) const PHYS_OFFSET: u64 = 0xfffffe0000000000;
+
 unsafe fn paging_allocate<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
@@ -21,7 +23,15 @@ unsafe fn paging_allocate<
 pub unsafe fn paging_create<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, kernel_phys: usize, kernel_base: usize) -> Option<usize> {
+>(os: &mut dyn Os<D, V>, kernel_phys: u64, kernel_base: u64) -> Option<usize> {
     log::error!("paging_create not implemented for aarch64");
+    None
+}
+
+pub unsafe fn paging_framebuffer<
+    D: Disk,
+    V: Iterator<Item=OsVideoMode>
+>(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<()> {
+    log::error!("paging_framebuffer not implemented for aarch64");
     None
 }

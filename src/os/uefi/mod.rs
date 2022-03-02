@@ -82,7 +82,7 @@ impl Os<
     }
 
     fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<DiskEfi>> {
-        for (i, block_io) in DiskEfi::all().into_iter().enumerate() {
+        for block_io in DiskEfi::all().into_iter() {
             if !block_io.0.Media.LogicalPartition {
                 continue;
             }

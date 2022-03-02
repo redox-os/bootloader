@@ -7,6 +7,8 @@ use x86::{
 
 use crate::{
     KernelArgs,
+    Os,
+    arch::PHYS_OFFSET,
     logger::LOGGER,
 };
 
@@ -19,8 +21,6 @@ use super::super::{
     },
     memory_map::memory_map,
 };
-
-static PHYS_OFFSET: u64 = 0xFFFF800000000000;
 
 unsafe extern "C" fn kernel_entry(
     page_phys: usize,
@@ -58,7 +58,9 @@ unsafe extern "C" fn kernel_entry(
 
     // Enable paging, write protect kernel, protected mode
     let mut cr0 = controlregs::cr0();
-    cr0 |= Cr0::CR0_ENABLE_PAGING | Cr0::CR0_WRITE_PROTECT | Cr0::CR0_PROTECTED_MODE;
+    cr0 |= Cr0::CR0_ENABLE_PAGING
+        | Cr0::CR0_WRITE_PROTECT
+        | Cr0::CR0_PROTECTED_MODE;
     controlregs::cr0_write(cr0);
 
     // Set stack

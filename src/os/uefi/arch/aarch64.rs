@@ -3,6 +3,7 @@ use uefi::status::Result;
 
 use crate::{
     KernelArgs,
+    arch::PHYS_OFFSET,
     logger::LOGGER,
 };
 
@@ -15,8 +16,6 @@ use super::super::{
     },
     memory_map::memory_map,
 };
-
-static PHYS_OFFSET: u64 = 0xFFFF800000000000;
 
 #[no_mangle]
 pub extern "C" fn __chkstk() {
