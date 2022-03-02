@@ -93,11 +93,10 @@ pub unsafe fn paging_framebuffer<
         return Some(());
     }
 
-    let framebuffer_virt = framebuffer_phys + PHYS_OFFSET;
-    let pml4_i = (framebuffer_virt / 0x80_0000_0000) as usize;
-    let mut pdp_i = ((framebuffer_virt % 0x80_0000_0000) / 0x4000_0000) as usize;
-    let mut pd_i = ((framebuffer_virt % 0x4000_0000) / 0x20_0000) as usize;
-    assert_eq!(framebuffer_virt % 0x20_0000, 0);
+    let pml4_i = ((framebuffer_phys / 0x80_0000_0000) + 256) as usize;
+    let mut pdp_i = ((framebuffer_phys % 0x80_0000_0000) / 0x4000_0000) as usize;
+    let mut pd_i = ((framebuffer_phys % 0x4000_0000) / 0x20_0000) as usize;
+    assert_eq!(framebuffer_phys % 0x20_0000, 0);
 
     let pml4 = slice::from_raw_parts_mut(
         page_phys as *mut u64,
