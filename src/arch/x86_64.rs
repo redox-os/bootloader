@@ -3,17 +3,20 @@ use redoxfs::Disk;
 
 use crate::os::{Os, OsVideoMode};
 
-pub(crate) const PHYS_OFFSET: u64 = 0xFFFF800000000000;
+pub(crate) const ENTRY_ADDRESS_MASK: u64 = 0x000F_FFFF_FFFF_F000;
+pub(crate) const PAGE_ENTRIES: usize = 512;
+pub(crate) const PAGE_SIZE: usize = 4096;
+pub(crate) const PHYS_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
 unsafe fn paging_allocate<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
 >(os: &mut dyn Os<D, V>) -> Option<&'static mut [u64]> {
-    let ptr = os.alloc_zeroed_page_aligned(4096);
+    let ptr = os.alloc_zeroed_page_aligned(PAGE_SIZE);
     if ! ptr.is_null() {
         Some(slice::from_raw_parts_mut(
             ptr as *mut u64,
-            512 // page size divided by u64 size
+            PAGE_ENTRIES
         ))
     } else {
         None
@@ -74,7 +77,7 @@ pub unsafe fn paging_create<
                     let addr = kernel_phys + kernel_mapped;
                     pt[pt_i] = addr | 1 << 1 | 1;
                     pt_i += 1;
-                    kernel_mapped += 4096;
+                    kernel_mapped += PAGE_SIZE as u64;
                 }
             }
         }
@@ -100,13 +103,20 @@ pub unsafe fn paging_framebuffer<
 
     let pml4 = slice::from_raw_parts_mut(
         page_phys as *mut u64,
-        512
+        PAGE_ENTRIES
     );
 
     // Create PDP for framebuffer mapping
-    let pdp = paging_allocate(os)?;
-    assert_eq!(pml4[pml4_i], 0);
-    pml4[pml4_i] = pdp.as_ptr() as u64 | 1 << 1 | 1;
+    let pdp = if pml4[pml4_i] == 0 {
+        let pdp = paging_allocate(os)?;
+        pml4[pml4_i] = pdp.as_ptr() as u64 | 1 << 1 | 1;
+        pdp
+    } else {
+        slice::from_raw_parts_mut(
+            (pml4[pml4_i] & ENTRY_ADDRESS_MASK) as *mut u64,
+            PAGE_ENTRIES
+        )
+    };
 
     // Map framebuffer_size at framebuffer offset
     let mut framebuffer_mapped = 0;
