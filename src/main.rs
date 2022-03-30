@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(asm)]
 #![feature(lang_items)]
 #![cfg_attr(
     target_os = "uefi",

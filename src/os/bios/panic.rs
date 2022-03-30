@@ -1,6 +1,7 @@
 //! Intrinsics for panic handling
 
 use core::alloc::Layout;
+use core::arch::asm;
 use core::panic::PanicInfo;
 
 #[lang = "eh_personality"]
