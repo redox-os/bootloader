@@ -26,11 +26,11 @@ default-features = false
 features = ["force-soft"]
 
 [target.'cfg(target_os = "uefi")'.dependencies]
-redox_uefi = "0.1.3"
-redox_uefi_std = "0.1.5"
+redox_uefi = "0.1.5"
+redox_uefi_std = "0.1.7"
 
 [target."x86_64-unknown-uefi".dependencies]
-x86 = "0.43.0"
+x86 = "0.47.0"
 
 [features]
 default = []

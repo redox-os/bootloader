@@ -1,4 +1,4 @@
-use core::{mem, ptr};
+use core::{arch::asm, mem, ptr};
 use uefi::status::Result;
 use x86::{
     controlregs::{self, Cr0, Cr4},
