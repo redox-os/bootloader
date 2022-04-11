@@ -88,6 +88,9 @@ pub struct KernelArgs {
 
     areas_base: u64,
     areas_size: u64,
+
+    initfs_base: u64,
+    initfs_size: u64,
 }
 
 fn select_mode<
@@ -278,6 +281,48 @@ fn redoxfs<
     panic!("RedoxFS out of unlock attempts");
 }
 
+#[derive(PartialEq)]
+enum Filetype {
+    Elf,
+    Other,
+}
+fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, fs: &mut redoxfs::FileSystem<D>, filename: &str, filetype: Filetype) -> &'static mut [u8] {
+    fs.tx(|tx| {
+        let node = tx.find_node(redoxfs::TreePtr::root(), filename)
+            .unwrap_or_else(|err| panic!("Failed to find {} file: {}", filename, err));
+
+        let size = node.data().size();
+
+        print!("{}: 0/{} MiB", filename, size / MIBI as u64);
+
+        let ptr = os.alloc_zeroed_page_aligned(size as usize);
+        if ptr.is_null() {
+            panic!("Failed to allocate memory for {}", filename);
+        }
+
+        let slice = unsafe {
+            slice::from_raw_parts_mut(ptr, size as usize)
+        };
+
+        let mut i = 0;
+        for chunk in slice.chunks_mut(MIBI) {
+            print!("\r{}: {}/{} MiB", filename, i / MIBI as u64, size / MIBI as u64);
+            i += tx.read_node_inner(&node, i, chunk)
+                .unwrap_or_else(|err| panic!("Failed to read `{}` file: {}", filename, err)) as u64;
+        }
+        println!("\r{}: {}/{} MiB", filename, i / MIBI as u64, size / MIBI as u64);
+
+        if filetype == Filetype::Elf {
+            let magic = &slice[..4];
+            if magic != b"\x7FELF" {
+                panic!("{} has invalid magic number {:#X?}", filename, magic);
+            }
+        }
+
+        Ok(slice)
+    }).unwrap_or_else(|err| panic!("RedoxFS transaction failed while loading `{}`: {}", filename, err))
+}
+
 fn main<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
@@ -304,38 +349,11 @@ fn main<
         panic!("Failed to allocate memory for stack");
     }
 
-    let kernel = fs.tx(|tx| {
-        let node = tx.find_node(redoxfs::TreePtr::root(), "kernel")
-            .expect("Failed to find kernel file");
-
-        let size = node.data().size();
-
-        print!("Kernel: 0/{} MiB", size / MIBI as u64);
-
-        let ptr = os.alloc_zeroed_page_aligned(size as usize);
-        if ptr.is_null() {
-            panic!("Failed to allocate memory for kernel");
-        }
-
-        let kernel = unsafe {
-            slice::from_raw_parts_mut(ptr, size as usize)
-        };
-
-        let mut i = 0;
-        for chunk in kernel.chunks_mut(MIBI) {
-            print!("\rKernel: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
-            i += tx.read_node_inner(&node, i, chunk)
-                .expect("Failed to read kernel file") as u64;
-        }
-        println!("\rKernel: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
-
-        let magic = &kernel[..4];
-        if magic != b"\x7FELF" {
-            panic!("Kernel has invalid magic number {:#X?}", magic);
-        }
-
-        Ok(kernel)
-    }).expect("RedoxFS transaction failed");
+    let kernel = load_to_memory(os, &mut fs, "kernel", Filetype::Elf);
+    let (initfs_size, initfs_base) = {
+        let slice = load_to_memory(os, &mut fs, "initfs", Filetype::Other);
+        (slice.len() as u64, slice.as_mut_ptr() as u64)
+    };
 
     let page_phys = unsafe {
         paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64)
@@ -447,6 +465,8 @@ fn main<
             areas_size: unsafe {
                 (AREAS.len() * mem::size_of::<OsMemoryEntry>()) as u64
             },
+            initfs_base,
+            initfs_size,
         }
     )
 }
