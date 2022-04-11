@@ -289,11 +289,11 @@ enum Filetype {
 fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, fs: &mut redoxfs::FileSystem<D>, filename: &str, filetype: Filetype) -> &'static mut [u8] {
     fs.tx(|tx| {
         let node = tx.find_node(redoxfs::TreePtr::root(), filename)
-            .expect("Failed to find kernel file");
+            .unwrap_or_else(|err| panic!("Failed to find {} file: {}", filename, err));
 
         let size = node.data().size();
 
-        print!("Kernel: 0/{} MiB", size / MIBI as u64);
+        print!("{}: 0/{} MiB", filename, size / MIBI as u64);
 
         let ptr = os.alloc_zeroed_page_aligned(size as usize);
         if ptr.is_null() {
