@@ -124,10 +124,15 @@ impl Os<
                     slice::from_raw_parts(efi_edid.0.Edid, efi_edid.0.SizeOfEdid as usize)
                 };
 
-                Some((
-                    (edid[0x38] as u32) | (((edid[0x3A] as u32) & 0xF0) << 4),
-                    (edid[0x3B] as u32) | (((edid[0x3D] as u32) & 0xF0) << 4),
-                ))
+                if edid.len() > 0x3D {
+                    Some((
+                        (edid[0x38] as u32) | (((edid[0x3A] as u32) & 0xF0) << 4),
+                        (edid[0x3B] as u32) | (((edid[0x3D] as u32) & 0xF0) << 4),
+                    ))
+                } else {
+                    log::warn!("EFI EDID too small: {}", edid.len());
+                    None
+                }
             },
             Err(err) => {
                 log::warn!("Failed to get EFI EDID: {:?}", err);
