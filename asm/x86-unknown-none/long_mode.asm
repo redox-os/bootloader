@@ -14,9 +14,9 @@ long_mode:
     and eax, 0x7FFFFFFF
     mov cr0, eax
 
-    ; enable OSXSAVE, FXSAVE/FXRSTOR, Page Global, Page Address Extension, and Page Size Extension
+    ; enable FXSAVE/FXRSTOR, Page Global, Page Address Extension, and Page Size Extension
     mov eax, cr4
-    or eax, 1 << 18 | 1 << 9 | 1 << 7 | 1 << 5 | 1 << 4
+    or eax, 1 << 9 | 1 << 7 | 1 << 5 | 1 << 4
     mov cr4, eax
 
     ; load long mode GDT

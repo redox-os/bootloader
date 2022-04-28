@@ -39,10 +39,9 @@ unsafe extern "C" fn kernel_entry(
     // Disable interrupts
     asm!("cli");
 
-    // Enable OSXSAVE, FXSAVE/FXRSTOR, Page Global, Page Address Extension, and Page Size Extension
+    // Enable FXSAVE/FXRSTOR, Page Global, Page Address Extension, and Page Size Extension
     let mut cr4 = controlregs::cr4();
-    cr4 |= Cr4::CR4_ENABLE_OS_XSAVE
-        | Cr4::CR4_ENABLE_SSE
+    cr4 |= Cr4::CR4_ENABLE_SSE
         | Cr4::CR4_ENABLE_GLOBAL_PAGES
         | Cr4::CR4_ENABLE_PAE
         | Cr4::CR4_ENABLE_PSE;
