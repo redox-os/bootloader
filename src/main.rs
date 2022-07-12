@@ -89,8 +89,9 @@ pub struct KernelArgs {
     areas_base: u64,
     areas_size: u64,
 
-    initfs_base: u64,
-    initfs_size: u64,
+    bootstrap_base: u64,
+    bootstrap_size: u64,
+    bootstrap_entry: u64,
 }
 
 fn select_mode<
@@ -350,9 +351,23 @@ fn main<
     }
 
     let kernel = load_to_memory(os, &mut fs, "kernel", Filetype::Elf);
-    let (initfs_size, initfs_base) = {
-        let slice = load_to_memory(os, &mut fs, "initfs", Filetype::Other);
-        (slice.len() as u64, slice.as_mut_ptr() as u64)
+    let (bootstrap_size, bootstrap_base, bootstrap_entry, initfs_offset, initfs_len) = {
+        let initfs_slice = load_to_memory(os, &mut fs, "initfs", Filetype::Other);
+        let bootstrap_slice = load_to_memory(os, &mut fs, "bootstrap", Filetype::Elf);
+        let bootstrap_len = (bootstrap_slice.len()+4095)/4096*4096;
+        let initfs_len = (initfs_slice.len()+4095)/4096*4096;
+        let entry = u64::from_le_bytes(<[u8; 8]>::try_from(&bootstrap_slice[0x18..0x18 + 8]).expect("conversion cannot fail"));
+
+        let memory = unsafe {
+            let total_size = initfs_len + bootstrap_len;
+            let ptr = os.alloc_zeroed_page_aligned(total_size);
+            assert!(!ptr.is_null(), "failed to allocate bootstrap+initfs memory");
+            core::slice::from_raw_parts_mut(ptr, total_size)
+        };
+        memory[..bootstrap_slice.len()].copy_from_slice(bootstrap_slice);
+        memory[bootstrap_len..bootstrap_len + initfs_slice.len()].copy_from_slice(initfs_slice);
+
+        (memory.len() as u64, memory.as_mut_ptr() as u64, entry, bootstrap_len, initfs_len)
     };
 
     let page_phys = unsafe {
@@ -444,6 +459,8 @@ fn main<
             writeln!(w, "FRAMEBUFFER_WIDTH={:016x}", mode.width).unwrap();
             writeln!(w, "FRAMEBUFFER_HEIGHT={:016x}", mode.height).unwrap();
         }
+        writeln!(w, "INITFS_OFFSET={:016x}", initfs_offset).unwrap();
+        writeln!(w, "INITFS_LENGTH={:016x}", initfs_len).unwrap();
 
         env_size = w.i;
     }
@@ -465,8 +482,9 @@ fn main<
             areas_size: unsafe {
                 (AREAS.len() * mem::size_of::<OsMemoryEntry>()) as u64
             },
-            initfs_base,
-            initfs_size,
+            bootstrap_base,
+            bootstrap_size,
+            bootstrap_entry,
         }
     )
 }
