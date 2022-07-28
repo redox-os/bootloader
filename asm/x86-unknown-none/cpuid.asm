@@ -6,6 +6,18 @@ cpuid_required_features:
     .ecx equ 0
 
 cpuid_check:
+    ; If bit 21 of EFLAGS can be changed, then CPUID is supported
+    pushfd                               ;Save EFLAGS
+    pushfd                               ;Store EFLAGS
+    xor dword [esp],0x00200000           ;Invert the ID bit in stored EFLAGS
+    popfd                                ;Load stored EFLAGS (with ID bit inverted)
+    pushfd                               ;Store EFLAGS again (ID bit may or may not be inverted)
+    pop eax                              ;eax = modified EFLAGS (ID bit may or may not be inverted)
+    xor eax,[esp]                        ;eax = whichever bits were changed
+    popfd                                ;Restore original EFLAGS
+    test eax,0x00200000                  ;eax = zero if ID bit can't be changed, else non-zero
+    jz .no_cpuid
+
     mov eax, 1
     cpuid
 
@@ -18,6 +30,15 @@ cpuid_check:
     jne .error
 
     ret
+
+.no_cpuid:
+    mov si, .msg_cpuid
+    call print
+
+    mov si, .msg_line
+    call print
+
+    jmp .halt
 
 .error:
     push ecx
@@ -82,6 +103,7 @@ cpuid_check:
     hlt
     jmp .halt
 
+.msg_cpuid: db "CPUID not supported",0
 .msg_features: db "Required CPU features are not present",0
 .msg_line: db 13,10,0
 .msg_edx: db "EDX ",0
