@@ -70,7 +70,7 @@ pub fn main() -> Result<()> {
 
     find_acpi_table_pointers(&mut os);
 
-    let (page_phys, mut args) = crate::main(&mut os);
+    let (page_phys, func, mut args) = crate::main(&mut os);
 
     unsafe {
         args.acpi_rsdps_base = RSDPS_AREA_BASE as u64;
@@ -79,7 +79,7 @@ pub fn main() -> Result<()> {
         kernel_entry(
             page_phys,
             args.stack_base + args.stack_size + PHYS_OFFSET,
-            ptr::read((args.kernel_base + 0x18) as *const u64),
+            func,
             &args,
         );
     }

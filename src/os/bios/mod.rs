@@ -219,12 +219,12 @@ pub unsafe extern "C" fn start(
 
     ALLOCATOR.lock().init(heap_start, heap_size);
 
-    let (page_phys, args) = crate::main(&mut os);
+    let (page_phys, func, args) = crate::main(&mut os);
 
     kernel_entry(
         page_phys,
         args.stack_base + args.stack_size + PHYS_OFFSET,
-        ptr::read((args.kernel_base + 0x18) as *const u64),
+        func,
         &args,
     );
 }

@@ -324,10 +324,34 @@ fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, 
     }).unwrap_or_else(|err| panic!("RedoxFS transaction failed while loading `{}`: {}", filename, err))
 }
 
+fn elf_entry(data: &[u8]) -> u64 {
+    match (data[4], data[5]) {
+        // 32-bit, little endian
+        (1, 1) => {
+            u32::from_le_bytes(<[u8; 4]>::try_from(&data[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64
+        },
+        // 32-bit, big endian
+        (1, 2) => {
+            u32::from_be_bytes(<[u8; 4]>::try_from(&data[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64
+        },
+        // 64-bit, little endian
+        (2, 1) => {
+            u64::from_le_bytes(<[u8; 8]>::try_from(&data[0x18..0x18 + 8]).expect("conversion cannot fail"))
+        },
+        // 64-bit, big endian
+        (2, 2) => {
+            u64::from_be_bytes(<[u8; 8]>::try_from(&data[0x18..0x18 + 8]).expect("conversion cannot fail"))
+        },
+        (ei_class, ei_data) => {
+            panic!("Unsupported ELF EI_CLASS {} EI_DATA {}", ei_class, ei_data);
+        }
+    }
+}
+
 fn main<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>) -> (usize, KernelArgs) {
+>(os: &mut dyn Os<D, V>) -> (usize, u64, KernelArgs) {
     println!("Redox OS Bootloader {} on {}", env!("CARGO_PKG_VERSION"), os.name());
 
     let (mut fs, password_opt) = redoxfs(os);
@@ -350,33 +374,18 @@ fn main<
         panic!("Failed to allocate memory for stack");
     }
 
-    let kernel = load_to_memory(os, &mut fs, "kernel", Filetype::Elf);
+    let (kernel, kernel_entry) = {
+        let kernel = load_to_memory(os, &mut fs, "kernel", Filetype::Elf);
+        let kernel_entry = elf_entry(kernel);
+        (kernel, kernel_entry)
+    };
+
     let (bootstrap_size, bootstrap_base, bootstrap_entry, initfs_offset, initfs_len) = {
         let initfs_slice = load_to_memory(os, &mut fs, "initfs", Filetype::Other);
         let bootstrap_slice = load_to_memory(os, &mut fs, "bootstrap", Filetype::Elf);
         let bootstrap_len = (bootstrap_slice.len()+4095)/4096*4096;
         let initfs_len = (initfs_slice.len()+4095)/4096*4096;
-        let entry: u64 = match (bootstrap_slice[4], bootstrap_slice[5]) {
-            // 32-bit, little endian
-            (1, 1) => {
-                u32::from_le_bytes(<[u8; 4]>::try_from(&bootstrap_slice[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64
-            },
-            // 32-bit, big endian
-            (1, 2) => {
-                u32::from_be_bytes(<[u8; 4]>::try_from(&bootstrap_slice[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64
-            },
-            // 64-bit, little endian
-            (2, 1) => {
-                u64::from_le_bytes(<[u8; 8]>::try_from(&bootstrap_slice[0x18..0x18 + 8]).expect("conversion cannot fail"))
-            },
-            // 64-bit, big endian
-            (2, 2) => {
-                u64::from_be_bytes(<[u8; 8]>::try_from(&bootstrap_slice[0x18..0x18 + 8]).expect("conversion cannot fail"))
-            },
-            (ei_class, ei_data) => {
-                panic!("Unsupported bootstrap EI_CLASS {} EI_DATA {}", ei_class, ei_data);
-            }
-        };
+        let bootstrap_entry = elf_entry(bootstrap_slice);
 
         let memory = unsafe {
             let total_size = initfs_len + bootstrap_len;
@@ -387,7 +396,7 @@ fn main<
         memory[..bootstrap_slice.len()].copy_from_slice(bootstrap_slice);
         memory[bootstrap_len..bootstrap_len + initfs_slice.len()].copy_from_slice(initfs_slice);
 
-        (memory.len() as u64, memory.as_mut_ptr() as u64, entry, bootstrap_len, initfs_len)
+        (memory.len() as u64, memory.as_mut_ptr() as u64, bootstrap_entry, bootstrap_len, initfs_len)
     };
 
     let page_phys = unsafe {
@@ -487,6 +496,7 @@ fn main<
 
     (
         page_phys,
+        kernel_entry,
         KernelArgs {
             kernel_base: kernel.as_ptr() as u64,
             kernel_size: kernel.len() as u64,
