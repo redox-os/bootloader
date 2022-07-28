@@ -356,7 +356,27 @@ fn main<
         let bootstrap_slice = load_to_memory(os, &mut fs, "bootstrap", Filetype::Elf);
         let bootstrap_len = (bootstrap_slice.len()+4095)/4096*4096;
         let initfs_len = (initfs_slice.len()+4095)/4096*4096;
-        let entry = u64::from_le_bytes(<[u8; 8]>::try_from(&bootstrap_slice[0x18..0x18 + 8]).expect("conversion cannot fail"));
+        let entry: u64 = match (bootstrap_slice[4], bootstrap_slice[5]) {
+            // 32-bit, little endian
+            (1, 1) => {
+                u32::from_le_bytes(<[u8; 4]>::try_from(&bootstrap_slice[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64
+            },
+            // 32-bit, big endian
+            (1, 2) => {
+                u32::from_be_bytes(<[u8; 4]>::try_from(&bootstrap_slice[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64
+            },
+            // 64-bit, little endian
+            (2, 1) => {
+                u64::from_le_bytes(<[u8; 8]>::try_from(&bootstrap_slice[0x18..0x18 + 8]).expect("conversion cannot fail"))
+            },
+            // 64-bit, big endian
+            (2, 2) => {
+                u64::from_be_bytes(<[u8; 8]>::try_from(&bootstrap_slice[0x18..0x18 + 8]).expect("conversion cannot fail"))
+            },
+            (ei_class, ei_data) => {
+                panic!("Unsupported bootstrap EI_CLASS {} EI_DATA {}", ei_class, ei_data);
+            }
+        };
 
         let memory = unsafe {
             let total_size = initfs_len + bootstrap_len;
