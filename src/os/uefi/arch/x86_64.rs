@@ -8,7 +8,6 @@ use x86::{
 use crate::{
     KernelArgs,
     Os,
-    arch::PHYS_OFFSET,
     logger::LOGGER,
 };
 
@@ -32,7 +31,11 @@ unsafe extern "C" fn kernel_entry(
     {
         let mut memory_iter = memory_map();
         memory_iter.exit_boot_services();
-        memory_iter.set_virtual_address_map(PHYS_OFFSET);
+        memory_iter.set_virtual_address_map(if crate::KERNEL_64BIT {
+            crate::arch::x64::PHYS_OFFSET as u64
+        } else {
+            crate::arch::x32::PHYS_OFFSET as u64
+        });
         mem::forget(memory_iter);
     }
 
@@ -90,7 +93,11 @@ pub fn main() -> Result<()> {
 
         kernel_entry(
             page_phys,
-            args.stack_base + args.stack_size + PHYS_OFFSET,
+            args.stack_base + args.stack_size + if crate::KERNEL_64BIT {
+                crate::arch::x64::PHYS_OFFSET as u64
+            } else {
+                crate::arch::x32::PHYS_OFFSET as u64
+            },
             func,
             &args,
         );
