@@ -1,14 +1,12 @@
 use alloc::alloc::{alloc_zeroed, Layout};
 use core::{
     convert::TryFrom,
-    ptr,
     slice,
 };
 use linked_list_allocator::LockedHeap;
 use spin::Mutex;
 
 use crate::KernelArgs;
-use crate::arch::PHYS_OFFSET;
 use crate::logger::LOGGER;
 use crate::os::{Os, OsKey, OsVideoMode};
 
@@ -178,6 +176,7 @@ pub unsafe extern "C" fn start(
         stack: u64,
         func: u64,
         args: *const KernelArgs,
+        long_mode: usize,
     ) -> !,
     boot_disk: usize,
     thunk10: extern "C" fn(),
@@ -223,8 +222,13 @@ pub unsafe extern "C" fn start(
 
     kernel_entry(
         page_phys,
-        args.stack_base + args.stack_size + PHYS_OFFSET,
+        args.stack_base + args.stack_size + if crate::KERNEL_64BIT {
+            crate::arch::x64::PHYS_OFFSET as u64
+        } else {
+            crate::arch::x32::PHYS_OFFSET as u64
+        },
         func,
         &args,
+        if crate::KERNEL_64BIT { 1 } else { 0 },
     );
 }

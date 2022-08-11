@@ -72,18 +72,55 @@ kernel:
     mov eax, [esp + 24]
     mov [.args], eax
 
-    mov eax, .inner
+    ; long_mode: usize
+    mov eax, [esp + 28]
+    test eax, eax
+    jz .inner32
+
+    mov eax, .inner64
     mov [long_mode.func], eax
     jmp long_mode.entry
 
+.inner32:
+    ; disable paging
+    mov eax, cr0
+    and eax, 0x7FFFFFFF
+    mov cr0, eax
+
+    ;TODO: PAE (1 << 5)
+    ; enable FXSAVE/FXRSTOR, Page Global, and Page Size Extension
+    mov eax, cr4
+    or eax, 1 << 9 | 1 << 7 | 1 << 4
+    mov cr4, eax
+
+    ; set page table
+    mov eax, [long_mode.page_table]
+    mov cr3, eax
+
+    ; enabling paging and protection simultaneously
+    mov eax, cr0
+    ; Bit 31: Paging, Bit 16: write protect kernel, Bit 0: Protected Mode
+    or eax, 1 << 31 | 1 << 16 | 1
+    mov cr0, eax
+
+    mov esp, [.stack]
+    mov eax, [.args]
+    push eax
+    mov eax, [.func]
+    call eax
+.halt32:
+    cli
+    hlt
+    jmp .halt32
+
 USE64
 
-.inner:
+.inner64:
     mov rsp, [.stack]
     mov rax, [.func]
     mov rdi, [.args]
     call rax
-.halt:
+.halt64:
     cli
     hlt
-    jmp .halt
+    jmp .halt64

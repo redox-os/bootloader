@@ -3,7 +3,7 @@ use redoxfs::Disk;
 
 use crate::os::{Os, OsVideoMode};
 
-pub(crate) const PHYS_OFFSET: u64 = 0xfffffe0000000000;
+const PHYS_OFFSET: u64 = 0xfffffe0000000000;
 
 unsafe fn paging_allocate<
     D: Disk,

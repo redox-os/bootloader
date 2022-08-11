@@ -46,6 +46,8 @@ pub static mut AREAS: [OsMemoryEntry; 512] = [OsMemoryEntry {
     kind: OsMemoryKind::Null,
 }; 512];
 
+pub static mut KERNEL_64BIT: bool = false;
+
 struct SliceWriter<'a> {
     slice: &'a mut [u8],
     i: usize,
@@ -324,24 +326,28 @@ fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, 
     }).unwrap_or_else(|err| panic!("RedoxFS transaction failed while loading `{}`: {}", filename, err))
 }
 
-fn elf_entry(data: &[u8]) -> u64 {
+fn elf_entry(data: &[u8]) -> (u64, bool) {
     match (data[4], data[5]) {
         // 32-bit, little endian
-        (1, 1) => {
-            u32::from_le_bytes(<[u8; 4]>::try_from(&data[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64
-        },
+        (1, 1) => (
+            u32::from_le_bytes(<[u8; 4]>::try_from(&data[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64,
+            false,
+        ),
         // 32-bit, big endian
-        (1, 2) => {
-            u32::from_be_bytes(<[u8; 4]>::try_from(&data[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64
-        },
+        (1, 2) => (
+            u32::from_be_bytes(<[u8; 4]>::try_from(&data[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64,
+            false,
+        ),
         // 64-bit, little endian
-        (2, 1) => {
-            u64::from_le_bytes(<[u8; 8]>::try_from(&data[0x18..0x18 + 8]).expect("conversion cannot fail"))
-        },
+        (2, 1) => (
+            u64::from_le_bytes(<[u8; 8]>::try_from(&data[0x18..0x18 + 8]).expect("conversion cannot fail")),
+            true,
+        ),
         // 64-bit, big endian
-        (2, 2) => {
-            u64::from_be_bytes(<[u8; 8]>::try_from(&data[0x18..0x18 + 8]).expect("conversion cannot fail"))
-        },
+        (2, 2) => (
+            u64::from_be_bytes(<[u8; 8]>::try_from(&data[0x18..0x18 + 8]).expect("conversion cannot fail")),
+            true,
+        ),
         (ei_class, ei_data) => {
             panic!("Unsupported ELF EI_CLASS {} EI_DATA {}", ei_class, ei_data);
         }
@@ -376,7 +382,8 @@ fn main<
 
     let (kernel, kernel_entry) = {
         let kernel = load_to_memory(os, &mut fs, "kernel", Filetype::Elf);
-        let kernel_entry = elf_entry(kernel);
+        let (kernel_entry, kernel_64bit) = elf_entry(kernel);
+        unsafe { KERNEL_64BIT = kernel_64bit; }
         (kernel, kernel_entry)
     };
 
@@ -385,7 +392,8 @@ fn main<
         let bootstrap_slice = load_to_memory(os, &mut fs, "bootstrap", Filetype::Elf);
         let bootstrap_len = (bootstrap_slice.len()+4095)/4096*4096;
         let initfs_len = (initfs_slice.len()+4095)/4096*4096;
-        let bootstrap_entry = elf_entry(bootstrap_slice);
+        let (bootstrap_entry, bootstrap_64bit) = elf_entry(bootstrap_slice);
+        unsafe { assert_eq!(KERNEL_64BIT, bootstrap_64bit); }
 
         let memory = unsafe {
             let total_size = initfs_len + bootstrap_len;

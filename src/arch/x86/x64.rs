@@ -3,9 +3,9 @@ use redoxfs::Disk;
 
 use crate::os::{Os, OsVideoMode};
 
-pub(crate) const ENTRY_ADDRESS_MASK: u64 = 0x000F_FFFF_FFFF_F000;
-pub(crate) const PAGE_ENTRIES: usize = 512;
-pub(crate) const PAGE_SIZE: usize = 4096;
+const ENTRY_ADDRESS_MASK: u64 = 0x000F_FFFF_FFFF_F000;
+const PAGE_ENTRIES: usize = 512;
+const PAGE_SIZE: usize = 4096;
 pub(crate) const PHYS_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
 unsafe fn paging_allocate<
