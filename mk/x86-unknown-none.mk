@@ -25,7 +25,7 @@ $(BUILD)/bootloader.elf: linkers/$(TARGET).ld $(BUILD)/libbootloader.a
 
 $(BUILD)/bootloader.bin: $(BUILD)/bootloader.elf $(shell find asm/$(TARGET) -type f)
 	mkdir -p $(BUILD)
-	nasm -f bin -o $@ -l $@.lst -D STAGE3=$< -iasm/$(TARGET) asm/$(TARGET)/bootloader.asm
+	nasm -f bin -o $@ -l $@.lst -D STAGE3=$< -iasm/$(TARGET)/ asm/$(TARGET)/bootloader.asm
 
 $(BUILD)/libbootloader-live.a: Cargo.lock Cargo.toml $(shell find src -type f)
 	mkdir -p $(BUILD)
@@ -48,7 +48,7 @@ $(BUILD)/bootloader-live.elf: linkers/$(TARGET).ld $(BUILD)/libbootloader-live.a
 
 $(BUILD)/bootloader-live.bin: $(BUILD)/bootloader-live.elf $(shell find asm/$(TARGET) -type f)
 	mkdir -p $(BUILD)
-	nasm -f bin -o $@ -l $@.lst -D STAGE3=$< -iasm/$(TARGET) asm/$(TARGET)/bootloader.asm
+	nasm -f bin -o $@ -l $@.lst -D STAGE3=$< -iasm/$(TARGET)/ asm/$(TARGET)/bootloader.asm
 
 $(BUILD)/harddrive.bin: $(BUILD)/bootloader.bin $(BUILD)/filesystem.bin
 	mkdir -p $(BUILD)
