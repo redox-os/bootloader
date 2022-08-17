@@ -289,9 +289,12 @@ enum Filetype {
     Elf,
     Other,
 }
-fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, fs: &mut redoxfs::FileSystem<D>, filename: &str, filetype: Filetype) -> &'static mut [u8] {
+fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, fs: &mut redoxfs::FileSystem<D>, dirname: &str, filename: &str, filetype: Filetype) -> &'static mut [u8] {
     fs.tx(|tx| {
-        let node = tx.find_node(redoxfs::TreePtr::root(), filename)
+        let dir_node = tx.find_node(redoxfs::TreePtr::root(), dirname)
+            .unwrap_or_else(|err| panic!("Failed to find {} directory: {}", dirname, err));
+
+        let node = tx.find_node(dir_node.ptr(), filename)
             .unwrap_or_else(|err| panic!("Failed to find {} file: {}", filename, err));
 
         let size = node.data().size();
@@ -381,15 +384,15 @@ fn main<
     }
 
     let (kernel, kernel_entry) = {
-        let kernel = load_to_memory(os, &mut fs, "kernel", Filetype::Elf);
+        let kernel = load_to_memory(os, &mut fs, "boot", "kernel", Filetype::Elf);
         let (kernel_entry, kernel_64bit) = elf_entry(kernel);
         unsafe { KERNEL_64BIT = kernel_64bit; }
         (kernel, kernel_entry)
     };
 
     let (bootstrap_size, bootstrap_base, bootstrap_entry, initfs_offset, initfs_len) = {
-        let initfs_slice = load_to_memory(os, &mut fs, "initfs", Filetype::Other);
-        let bootstrap_slice = load_to_memory(os, &mut fs, "bootstrap", Filetype::Elf);
+        let initfs_slice = load_to_memory(os, &mut fs, "boot", "initfs", Filetype::Other);
+        let bootstrap_slice = load_to_memory(os, &mut fs, "boot", "bootstrap", Filetype::Elf);
         let bootstrap_len = (bootstrap_slice.len()+4095)/4096*4096;
         let initfs_len = (initfs_slice.len()+4095)/4096*4096;
         let (bootstrap_entry, bootstrap_64bit) = elf_entry(bootstrap_slice);
