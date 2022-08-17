@@ -3,7 +3,7 @@ OUTPUT_FORMAT(elf32-i386)
 
 SECTIONS {
     /* The start address must match bootloader.asm */
-    . = 0x9000;
+    . = 0xD000;
 
     . += SIZEOF_HEADERS;
     . = ALIGN(4096);
