@@ -48,7 +48,20 @@ unsafe extern "C" fn kernel_entry(
         lateout("x0") _
     );
 
-    //TODO: Set stack
+    // Set new page map
+    asm!("msr ttbr1_el1, {0}", in(reg) page_phys);
+
+    // Enable MMU
+    asm!(
+        "mrs     x0, sctlr_el1",
+        "orr     x0, x0, 1",
+        "msr     sctlr_el1, x0",
+        "isb",
+        lateout("x0") _
+    );
+
+    // Set stack
+    asm!("mov sp, {}", in(reg) stack);
 
     // Call kernel entry
     let entry_fn: extern "C" fn(*const KernelArgs) -> ! = mem::transmute(func);
