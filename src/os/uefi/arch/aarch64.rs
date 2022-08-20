@@ -41,23 +41,48 @@ unsafe extern "C" fn kernel_entry(
 
     // Disable MMU
     asm!(
-        "mrs     x0, sctlr_el1",
-        "bic     x0, x0, 1",
-        "msr     sctlr_el1, x0",
-        "isb",
-        lateout("x0") _
+        "mrs {0}, sctlr_el1", // Read system control register
+        "bic {0}, {0}, 1", // Clear MMU enable bit
+        "msr sctlr_el1, {0}", // Write system control register
+        "isb", // Instruction sync barrier
+        out(reg) _,
     );
 
-    // Set new page map
-    asm!("msr ttbr1_el1, {0}", in(reg) page_phys);
+    // Set page tables
+    asm!(
+        "dsb sy", // Data sync barrier
+        "msr ttbr1_el1, {0}", // Set higher half page table
+        "isb", // Instruction sync barrier
+        "tlbi vmalle1is", // Invalidate TLB
+        in(reg) page_phys,
+    );
+
+    // Set MAIR
+    asm!(
+        "msr mair_el1, {0}",
+        in(reg) 0xff4400, // MAIR: Arrange for Device, Normal Non-Cache, Normal Write-Back access types
+    );
+
+    // Set TCR
+    asm!(
+        "mrs {1}, id_aa64mmfr0_el1", // Read memory model feature register
+        "bfi {0}, {1}, #32, #3",
+        "msr tcr_el1, {0}", // Write translaction control register
+        "isb", // Instruction sync barrier
+        in(reg) 0x1085100510u64, // TCR: (TxSZ, ASID_16, TG1_4K, Cache Attrs, SMP Attrs)
+        out(reg) _,
+    );
 
     // Enable MMU
     asm!(
-        "mrs     x0, sctlr_el1",
-        "orr     x0, x0, 1",
-        "msr     sctlr_el1, x0",
-        "isb",
-        lateout("x0") _
+        "mrs {2}, sctlr_el1", // Read system control register
+        "bic {2}, {2}, {0}", // Clear bits
+        "orr {2}, {2}, {1}", // Set bits
+        "msr sctlr_el1, {2}", // Write system control register
+        "isb", // Instruction sync barrier
+        in(reg) 0x32802c2,  // Clear SCTLR bits: (EE, EOE, IESB, WXN, UMA, ITD, THEE, A)
+        in(reg) 0x3485d13d, // Set SCTLR bits: (LSMAOE, nTLSMD, UCI, SPAN, nTWW, nTWI, UCT, DZE, I, SED, SA0, SA, C, M, CP15BEN)
+        out(reg) _,
     );
 
     // Set stack
