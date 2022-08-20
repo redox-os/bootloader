@@ -91,6 +91,52 @@ pub unsafe fn paging_framebuffer<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
 >(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<()> {
-    log::error!("paging_framebuffer not implemented for aarch64");
-    None
+    //TODO: smarter test for framebuffer already mapped
+    if framebuffer_phys + framebuffer_size <= 0x2_0000_0000 {
+        return Some(());
+    }
+
+    let l0_i = ((framebuffer_phys / 0x80_0000_0000) + 256) as usize;
+    let mut l1_i = ((framebuffer_phys % 0x80_0000_0000) / 0x4000_0000) as usize;
+    let mut l2_i = ((framebuffer_phys % 0x4000_0000) / 0x20_0000) as usize;
+    assert_eq!(framebuffer_phys % 0x20_0000, 0);
+
+    let l0 = slice::from_raw_parts_mut(
+        page_phys as *mut u64,
+        PAGE_ENTRIES
+    );
+
+    // Create l1 for framebuffer mapping
+    let l1 = if l0[l0_i] == 0 {
+        let l1 = paging_allocate(os)?;
+        l0[l0_i] = l1.as_ptr() as u64 | 1 << 10 | 1 << 1 | 1;
+        l1
+    } else {
+        slice::from_raw_parts_mut(
+            (l0[l0_i] & ENTRY_ADDRESS_MASK) as *mut u64,
+            PAGE_ENTRIES
+        )
+    };
+
+    // Map framebuffer_size at framebuffer offset
+    let mut framebuffer_mapped = 0;
+    while framebuffer_mapped < framebuffer_size && l1_i < l1.len() {
+        let l2 = paging_allocate(os)?;
+        assert_eq!(l1[l1_i], 0);
+        l1[l1_i] = l2.as_ptr() as u64 | 1 << 10 | 1 << 1 | 1;
+
+        while framebuffer_mapped < framebuffer_size && l2_i < l2.len() {
+            let addr = framebuffer_phys + framebuffer_mapped;
+            assert_eq!(l2[l2_i], 0);
+            l2[l2_i] = addr | 1 << 10 | 1;
+            framebuffer_mapped += 0x20_0000;
+            l2_i += 1;
+        }
+
+        l1_i += 1;
+        l2_i = 0;
+    }
+    assert!(framebuffer_mapped >= framebuffer_size);
+
+    Some(())
 }
