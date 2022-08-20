@@ -75,7 +75,7 @@ pub unsafe fn paging_create<
                 let mut l3_i = 0;
                 while kernel_mapped < kernel_size && l3_i < l3.len() {
                     let addr = kernel_phys + kernel_mapped;
-                    l3[l3_i] = addr | 1 << 10 | 1;
+                    l3[l3_i] = addr | 1 << 10 | 1 << 1 | 1;
                     l3_i += 1;
                     kernel_mapped += PAGE_SIZE as u64;
                 }
