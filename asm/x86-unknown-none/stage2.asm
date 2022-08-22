@@ -102,6 +102,14 @@ kernel:
     ; Bit 31: Paging, Bit 16: write protect kernel, Bit 0: Protected Mode
     or eax, 1 << 31 | 1 << 16 | 1
     mov cr0, eax
+    
+    ; enable FPU
+    ;TODO: move to Rust
+    mov eax, cr0
+    and al, 11110011b ; Clear task switched (3) and emulation (2)
+    or al, 00100010b ; Set numeric error (5) monitor co-processor (1)
+    mov cr0, eax
+    fninit
 
     mov esp, [.stack]
     mov eax, [.args]
