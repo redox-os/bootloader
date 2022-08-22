@@ -52,6 +52,18 @@ impl DiskBios {
 
 impl Disk for DiskBios {
     unsafe fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> Result<usize> {
+        // Optimization for live disks
+        if let Some(live) = crate::LIVE_OPT {
+            if block >= live.0 {
+                let start = ((block - live.0) * BLOCK_SIZE) as usize;
+                let end = start + buffer.len();
+                if end <= live.1.len() {
+                    buffer.copy_from_slice(&live.1[start..end]);
+                    return Ok(buffer.len());
+                }
+            }
+        }
+
         for (i, chunk) in buffer.chunks_mut((MAX_BLOCKS * BLOCK_SIZE) as usize).enumerate() {
             let mut dap = DiskAddressPacket::from_block(
                 block + i as u64 * MAX_BLOCKS,

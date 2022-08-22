@@ -19,6 +19,18 @@ impl Protocol<UefiBlockIo> for DiskEfi {
 
 impl Disk for DiskEfi {
     unsafe fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> Result<usize> {
+        // Optimization for live disks
+        if let Some(live) = crate::LIVE_OPT {
+            if block >= live.0 {
+                let start = ((block - live.0) * BLOCK_SIZE) as usize;
+                let end = start + buffer.len();
+                if end <= live.1.len() {
+                    buffer.copy_from_slice(&live.1[start..end]);
+                    return Ok(buffer.len());
+                }
+            }
+        }
+
         let block_size = self.0.Media.BlockSize as u64;
 
         let lba = block * BLOCK_SIZE / block_size;

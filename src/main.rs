@@ -48,6 +48,8 @@ pub static mut AREAS: [OsMemoryEntry; 512] = [OsMemoryEntry {
 
 pub static mut KERNEL_64BIT: bool = false;
 
+pub static mut LIVE_OPT: Option<(u64, &'static [u8])> = None;
+
 struct SliceWriter<'a> {
     slice: &'a mut [u8],
     i: usize,
@@ -383,38 +385,6 @@ fn main<
         panic!("Failed to allocate memory for stack");
     }
 
-    let (kernel, kernel_entry) = {
-        let kernel = load_to_memory(os, &mut fs, "boot", "kernel", Filetype::Elf);
-        let (kernel_entry, kernel_64bit) = elf_entry(kernel);
-        unsafe { KERNEL_64BIT = kernel_64bit; }
-        (kernel, kernel_entry)
-    };
-
-    let (bootstrap_size, bootstrap_base, bootstrap_entry, initfs_offset, initfs_len) = {
-        let initfs_slice = load_to_memory(os, &mut fs, "boot", "initfs", Filetype::Other);
-        let bootstrap_slice = load_to_memory(os, &mut fs, "boot", "bootstrap", Filetype::Elf);
-        let bootstrap_len = (bootstrap_slice.len()+4095)/4096*4096;
-        let initfs_len = (initfs_slice.len()+4095)/4096*4096;
-        let (bootstrap_entry, bootstrap_64bit) = elf_entry(bootstrap_slice);
-        unsafe { assert_eq!(KERNEL_64BIT, bootstrap_64bit); }
-
-        let memory = unsafe {
-            let total_size = initfs_len + bootstrap_len;
-            let ptr = os.alloc_zeroed_page_aligned(total_size);
-            assert!(!ptr.is_null(), "failed to allocate bootstrap+initfs memory");
-            core::slice::from_raw_parts_mut(ptr, total_size)
-        };
-        memory[..bootstrap_slice.len()].copy_from_slice(bootstrap_slice);
-        memory[bootstrap_len..bootstrap_len + initfs_slice.len()].copy_from_slice(initfs_slice);
-
-        (memory.len() as u64, memory.as_mut_ptr() as u64, bootstrap_entry, bootstrap_len, initfs_len)
-    };
-
-    let page_phys = unsafe {
-        paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64)
-    }.expect("Failed to set up paging");
-    //TODO: properly reserve page table allocations so kernel does not re-use them
-
     let live_opt = if cfg!(feature = "live") {
         let size = fs.header.size();
 
@@ -439,11 +409,52 @@ fn main<
         }
         println!("\rlive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
 
+        println!("Switching to live disk");
+        unsafe {
+            LIVE_OPT = Some((
+                fs.block,
+                slice::from_raw_parts_mut(ptr, size as usize)
+            ));
+        }
+
         Some(live)
     } else {
         None
     };
     //TODO: properly reserve live disk so kernel does not re-use it
+
+    let (kernel, kernel_entry) = {
+        let kernel = load_to_memory(os, &mut fs, "boot", "kernel", Filetype::Elf);
+        let (kernel_entry, kernel_64bit) = elf_entry(kernel);
+        unsafe { KERNEL_64BIT = kernel_64bit; }
+        (kernel, kernel_entry)
+    };
+
+    let (bootstrap_size, bootstrap_base, bootstrap_entry, initfs_offset, initfs_len) = {
+        let bootstrap_slice = load_to_memory(os, &mut fs, "boot", "bootstrap", Filetype::Elf);
+        let bootstrap_len = (bootstrap_slice.len()+4095)/4096*4096;
+        let (bootstrap_entry, bootstrap_64bit) = elf_entry(bootstrap_slice);
+        unsafe { assert_eq!(KERNEL_64BIT, bootstrap_64bit); }
+
+        let initfs_slice = load_to_memory(os, &mut fs, "boot", "initfs", Filetype::Other);
+        let initfs_len = (initfs_slice.len()+4095)/4096*4096;
+
+        let memory = unsafe {
+            let total_size = initfs_len + bootstrap_len;
+            let ptr = os.alloc_zeroed_page_aligned(total_size);
+            assert!(!ptr.is_null(), "failed to allocate bootstrap+initfs memory");
+            core::slice::from_raw_parts_mut(ptr, total_size)
+        };
+        memory[..bootstrap_slice.len()].copy_from_slice(bootstrap_slice);
+        memory[bootstrap_len..bootstrap_len + initfs_slice.len()].copy_from_slice(initfs_slice);
+
+        (memory.len() as u64, memory.as_mut_ptr() as u64, bootstrap_entry, bootstrap_len, initfs_len)
+    };
+
+    let page_phys = unsafe {
+        paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64)
+    }.expect("Failed to set up paging");
+    //TODO: properly reserve page table allocations so kernel does not re-use them
 
     let mut env_size = 4 * KIBI;
     let env_base = os.alloc_zeroed_page_aligned(env_size);
