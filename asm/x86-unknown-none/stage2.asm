@@ -22,8 +22,8 @@ stage2.entry:
 USE32
 
 stage3.entry:
-    ; stage3 stack at 512 KiB
-    mov esp, 0x80000
+    ; stage3 stack at 448 KiB (512KiB minus 64KiB disk buffer)
+    mov esp, 0x70000
 
     ; push arguments
     mov eax, thunk.int16

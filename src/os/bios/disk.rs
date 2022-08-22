@@ -6,9 +6,9 @@ use super::{DISK_ADDRESS_PACKET_ADDR, DISK_BIOS_ADDR, ThunkData};
 
 const SECTOR_SIZE: u64 = 512;
 const BLOCKS_PER_SECTOR: u64 = BLOCK_SIZE / SECTOR_SIZE;
-// 32 sectors is the amount allocated for DISK_BIOS_ADDR
+// 128 sectors is the amount allocated for DISK_BIOS_ADDR
 // 127 sectors is the maximum for many BIOSes
-const MAX_SECTORS: u64 = 32;
+const MAX_SECTORS: u64 = 127;
 const MAX_BLOCKS: u64 = MAX_SECTORS * SECTOR_SIZE / BLOCK_SIZE;
 
 #[allow(dead_code)]
@@ -32,8 +32,8 @@ impl DiskAddressPacket {
             size: mem::size_of::<DiskAddressPacket>() as u8,
             reserved: 0,
             sectors: sectors as u16,
-            buffer: DISK_BIOS_ADDR as u16,
-            segment: 0,
+            buffer: (DISK_BIOS_ADDR & 0xF) as u16,
+            segment: (DISK_BIOS_ADDR >> 4) as u16,
             address,
         }
     }

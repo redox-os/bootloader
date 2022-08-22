@@ -28,12 +28,12 @@ mod vga;
 
 // Real mode memory allocation, for use with thunk
 // 0x500 to 0x7BFF is free
-const DISK_BIOS_ADDR: usize = 0x1000; // 16384 bytes, ends at 0x4FFF
-const VBE_CARD_INFO_ADDR: usize = 0x5000; // 512 bytes, ends at 0x51FF
-const VBE_MODE_INFO_ADDR: usize = 0x5200; // 256 bytes, ends at 0x52FF
-const VBE_EDID_ADDR: usize = 0x5300; // 128 bytes, ends at 0x537F
-const MEMORY_MAP_ADDR: usize = 0x5380; // 24 bytes, ends at 0x5397
-const DISK_ADDRESS_PACKET_ADDR: usize = 0x5398; // 16 bytes, ends at 0x53A7
+const DISK_BIOS_ADDR: usize = 0x70000; // 64 KiB at 448 KiB, ends at 512 KiB
+const VBE_CARD_INFO_ADDR: usize = 0x1000; // 512 bytes, ends at 0x11FF
+const VBE_MODE_INFO_ADDR: usize = 0x1200; // 256 bytes, ends at 0x12FF
+const VBE_EDID_ADDR: usize = 0x1300; // 128 bytes, ends at 0x137F
+const MEMORY_MAP_ADDR: usize = 0x1380; // 24 bytes, ends at 0x1397
+const DISK_ADDRESS_PACKET_ADDR: usize = 0x1398; // 16 bytes, ends at 0x13A7
 const THUNK_STACK_ADDR: usize = 0x7C00; // Grows downwards
 const VGA_ADDR: usize = 0xB8000;
 
