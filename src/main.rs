@@ -418,7 +418,7 @@ fn main<
     let live_opt = if cfg!(feature = "live") {
         let size = fs.header.size();
 
-        print!("Live: 0/{} MiB", size / MIBI as u64);
+        print!("live: 0/{} MiB", size / MIBI as u64);
 
         let ptr = os.alloc_zeroed_page_aligned(size as usize);
         if ptr.is_null() {
@@ -431,13 +431,13 @@ fn main<
 
         let mut i = 0;
         for chunk in live.chunks_mut(MIBI) {
-            print!("\rLive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
+            print!("\rlive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
             i += unsafe {
                 fs.disk.read_at(fs.block + i / redoxfs::BLOCK_SIZE, chunk)
                     .expect("Failed to read live disk") as u64
             };
         }
-        println!("\rLive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
+        println!("\rlive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
 
         Some(live)
     } else {
