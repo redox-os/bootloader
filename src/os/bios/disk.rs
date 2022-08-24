@@ -79,7 +79,8 @@ impl Disk for DiskBios {
             data.with(self.thunk13);
 
             //TODO: return result on error
-            assert_eq!({ data.eax }, 0);
+            let ah = ({ data.eax } >> 8) & 0xFF;
+            assert_eq!(ah, 0);
 
             //TODO: check blocks transferred
             dap = ptr::read(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket);
