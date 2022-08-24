@@ -58,7 +58,31 @@ pub unsafe fn paging_create<
 pub unsafe fn paging_framebuffer<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<()> {
-    //TODO
-    Some(())
+>(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<u64> {
+    let framebuffer_virt = 0xD000_0000; // 256 MiB after kernel mapping, but before heap mapping
+
+    let pd = slice::from_raw_parts_mut(
+        page_phys as *mut u32,
+        PAGE_ENTRIES
+    );
+
+    // Map framebuffer_size at framebuffer offset
+    let mut framebuffer_mapped = 0;
+    let mut pd_i = framebuffer_virt / 0x40_0000;
+    while framebuffer_mapped < framebuffer_size && pd_i < pd.len(){
+        let pt = paging_allocate(os)?;
+        pd[pd_i] = pt.as_ptr() as u32 | 1 << 1 | 1;
+        pd_i += 1;
+
+        let mut pt_i = 0;
+        while framebuffer_mapped < framebuffer_size && pt_i < pt.len() {
+            let addr = framebuffer_phys + framebuffer_mapped;
+            pt[pt_i] = addr as u32 | 1 << 7 | 1 << 1 | 1;
+            pt_i += 1;
+            framebuffer_mapped += PAGE_SIZE as u64;
+        }
+    }
+    assert!(framebuffer_mapped >= framebuffer_size);
+
+    Some(framebuffer_virt as u64)
 }

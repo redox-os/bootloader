@@ -19,7 +19,7 @@ pub unsafe fn paging_create<
 pub unsafe fn paging_framebuffer<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<()> {
+>(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<u64> {
     if crate::KERNEL_64BIT {
         x64::paging_framebuffer(os, page_phys, framebuffer_phys, framebuffer_size)
     } else {

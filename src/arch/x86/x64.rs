@@ -90,10 +90,10 @@ pub unsafe fn paging_create<
 pub unsafe fn paging_framebuffer<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<()> {
+>(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<u64> {
     //TODO: smarter test for framebuffer already mapped
     if framebuffer_phys + framebuffer_size <= 0x2_0000_0000 {
-        return Some(());
+        return Some(framebuffer_phys + PHYS_OFFSET);
     }
 
     let pml4_i = ((framebuffer_phys / 0x80_0000_0000) + 256) as usize;
@@ -138,5 +138,5 @@ pub unsafe fn paging_framebuffer<
     }
     assert!(framebuffer_mapped >= framebuffer_size);
 
-    Some(())
+    Some(framebuffer_phys + PHYS_OFFSET)
 }

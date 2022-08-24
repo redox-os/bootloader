@@ -497,7 +497,7 @@ fn main<
             // Set mode to get updated values
             os.set_video_mode(&mut mode);
 
-            unsafe {
+            let virt = unsafe {
                 paging_framebuffer(
                     os,
                     page_phys,
@@ -507,6 +507,7 @@ fn main<
             }.expect("Failed to map framebuffer");
 
             writeln!(w, "FRAMEBUFFER_ADDR={:016x}", mode.base).unwrap();
+            writeln!(w, "FRAMEBUFFER_VIRT={:016x}", virt).unwrap();
             writeln!(w, "FRAMEBUFFER_WIDTH={:016x}", mode.width).unwrap();
             writeln!(w, "FRAMEBUFFER_HEIGHT={:016x}", mode.height).unwrap();
         }
