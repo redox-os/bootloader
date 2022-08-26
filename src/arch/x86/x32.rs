@@ -77,7 +77,7 @@ pub unsafe fn paging_framebuffer<
         let mut pt_i = 0;
         while framebuffer_mapped < framebuffer_size && pt_i < pt.len() {
             let addr = framebuffer_phys + framebuffer_mapped;
-            pt[pt_i] = addr as u32 | 1 << 7 | 1 << 1 | 1;
+            pt[pt_i] = addr as u32 | 1 << 1 | 1;
             pt_i += 1;
             framebuffer_mapped += PAGE_SIZE as u64;
         }
