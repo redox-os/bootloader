@@ -22,6 +22,7 @@ mod macros;
 mod disk;
 mod memory_map;
 mod panic;
+pub(crate) mod serial;
 mod thunk;
 mod vbe;
 mod vga;
@@ -184,6 +185,13 @@ pub unsafe extern "C" fn start(
     thunk15: extern "C" fn(),
     thunk16: extern "C" fn(),
 ) -> ! {
+    #[cfg(feature = "serial_debug")]
+    {
+        let mut com1 = serial::COM1.lock();
+        com1.init();
+        com1.write(b"SERIAL\n");
+    }
+
     {
         // Make sure we are in mode 3 (80x25 text mode)
         let mut data = ThunkData::new();

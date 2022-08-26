@@ -35,6 +35,7 @@ mod os;
 
 mod arch;
 mod logger;
+mod serial_16550;
 
 const KIBI: usize = 1024;
 const MIBI: usize = KIBI * KIBI;
