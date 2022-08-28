@@ -112,7 +112,9 @@ impl Os<
             (output.0.SetMode)(output.0, mode.id)
         ).unwrap();
 
-        // Update frame buffer base
+        // Update with actual mode information
+        mode.width = output.0.Mode.Info.HorizontalResolution;
+        mode.height = output.0.Mode.Info.VerticalResolution;
         mode.base = output.0.Mode.FrameBufferBase as u64;
     }
 

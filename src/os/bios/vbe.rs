@@ -131,8 +131,8 @@ impl Iterator for VideoModeIter {
                 let width = mode_info.xresolution as u32;
                 let height = mode_info.yresolution as u32;
 
-                //TODO: support resolutions that are not perfect multiples of 4
-                if width % 4 != 0 {
+                // We do not support framebuffers which have padding on each line
+                if width * 4 != mode_info.bytesperscanline as u32 {
                     continue;
                 }
 

@@ -43,8 +43,8 @@ impl Iterator for VideoModeIter {
                 let width = mode.HorizontalResolution;
                 let height = mode.VerticalResolution;
 
-                //TODO: support resolutions that are not perfect multiples of 4
-                if width % 4 != 0 {
+                // We do not support framebuffers which have padding on each line
+                if width != mode.PixelsPerScanLine {
                     continue;
                 }
 
