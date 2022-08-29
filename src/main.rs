@@ -22,6 +22,7 @@ use core::{
     cmp,
     fmt::{self, Write},
     mem,
+    ptr,
     slice,
     str,
 };
@@ -488,10 +489,11 @@ fn main<
         }
         writeln!(w).unwrap();
         if let Some(password) = password_opt {
-            //TODO: copy to reserved page
-            writeln!(w, "REDOXFS_PASSWORD_ADDR={:016x}", password.as_ptr() as usize).unwrap();
-            writeln!(w, "REDOXFS_PASSWORD_SIZE={:016x}", password.len()).unwrap();
-            mem::forget(password);
+            let password_size = password.len();
+            let password_base = os.alloc_zeroed_page_aligned(password_size);
+            unsafe { ptr::copy(password.as_ptr(), password_base, password_size); }
+            writeln!(w, "REDOXFS_PASSWORD_ADDR={:016x}", password_base as usize).unwrap();
+            writeln!(w, "REDOXFS_PASSWORD_SIZE={:016x}", password_size).unwrap();
         }
 
         if let Some(mut mode) = mode_opt {
