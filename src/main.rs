@@ -241,7 +241,7 @@ fn select_mode<
 fn redoxfs<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>) -> (redoxfs::FileSystem<D>, Option<String>) {
+>(os: &mut dyn Os<D, V>) -> (redoxfs::FileSystem<D>, Option<&'static [u8]>) {
     let attempts = 10;
     for attempt in 0..=attempts {
         let mut password_opt = None;
@@ -275,7 +275,15 @@ fn redoxfs<
             }
         }
         match os.filesystem(password_opt.as_ref().map(|x| x.as_bytes())) {
-            Ok(fs) => return (fs, password_opt),
+            Ok(fs) => return (fs, password_opt.map(|password| {
+                // Copy password to page aligned memory
+                let password_size = password.len();
+                let password_base = os.alloc_zeroed_page_aligned(password_size);
+                unsafe {
+                    ptr::copy(password.as_ptr(), password_base, password_size);
+                    slice::from_raw_parts(password_base, password_size)
+                }
+            })),
             Err(err) => match err.errno {
                 // Incorrect password, try again
                 syscall::ENOKEY => (),
@@ -489,11 +497,8 @@ fn main<
         }
         writeln!(w).unwrap();
         if let Some(password) = password_opt {
-            let password_size = password.len();
-            let password_base = os.alloc_zeroed_page_aligned(password_size);
-            unsafe { ptr::copy(password.as_ptr(), password_base, password_size); }
-            writeln!(w, "REDOXFS_PASSWORD_ADDR={:016x}", password_base as usize).unwrap();
-            writeln!(w, "REDOXFS_PASSWORD_SIZE={:016x}", password_size).unwrap();
+            writeln!(w, "REDOXFS_PASSWORD_ADDR={:016x}", password.as_ptr() as usize).unwrap();
+            writeln!(w, "REDOXFS_PASSWORD_SIZE={:016x}", password.len()).unwrap();
         }
 
         if let Some(mut mode) = mode_opt {
