@@ -1,11 +1,12 @@
 use core::ops::{ControlFlow, Try};
+use core::slice;
 use redoxfs::{BLOCK_SIZE, Disk};
 use syscall::{EIO, Error, Result};
 use std::proto::Protocol;
 use uefi::guid::{Guid, BLOCK_IO_GUID};
 use uefi::block_io::BlockIo as UefiBlockIo;
 
-pub struct DiskEfi(pub &'static mut UefiBlockIo);
+pub struct DiskEfi(pub &'static mut UefiBlockIo, &'static mut [u8]);
 
 impl Protocol<UefiBlockIo> for DiskEfi {
     fn guid() -> Guid {
@@ -13,7 +14,16 @@ impl Protocol<UefiBlockIo> for DiskEfi {
     }
 
     fn new(inner: &'static mut UefiBlockIo) -> Self {
-        Self(inner)
+        // Hack to get aligned buffer
+        let block = unsafe {
+            let ptr = super::alloc_zeroed_page_aligned(BLOCK_SIZE as usize);
+            slice::from_raw_parts_mut(
+                ptr,
+                BLOCK_SIZE as usize,
+            )
+        };
+
+        Self(inner, block)
     }
 }
 
@@ -31,12 +41,27 @@ impl Disk for DiskEfi {
             }
         }
 
-        let block_size = self.0.Media.BlockSize as u64;
+        // Use aligned buffer if necessary
+        let mut ptr = buffer.as_mut_ptr();
+        if self.0.Media.IoAlign != 0 {
+            if (ptr as usize) % (self.0.Media.IoAlign as usize) != 0 {
+                if buffer.len() == self.1.len() {
+                    ptr = self.1.as_mut_ptr();
+                }
+            }
+        }
 
+        let block_size = self.0.Media.BlockSize as u64;
         let lba = block * BLOCK_SIZE / block_size;
 
-        match (self.0.ReadBlocks)(self.0, self.0.Media.MediaId, lba, buffer.len(), buffer.as_mut_ptr()).branch() {
-            ControlFlow::Continue(_) => Ok(buffer.len()),
+        match (self.0.ReadBlocks)(self.0, self.0.Media.MediaId, lba, buffer.len(), ptr).branch() {
+            ControlFlow::Continue(_) => {
+                // Copy to original buffer if using aligned buffer
+                if ptr != buffer.as_mut_ptr() {
+                    buffer.copy_from_slice(&self.1);
+                }
+                Ok(buffer.len())
+            },
             ControlFlow::Break(err) => {
                 println!("DiskEfi::read_at 0x{:X} failed: {:?}", block, err);
                 Err(Error::new(EIO))

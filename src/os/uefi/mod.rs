@@ -34,6 +34,36 @@ mod dtb;
 mod memory_map;
 mod video_mode;
 
+pub(crate) fn page_size() -> usize {
+    // EDK2 always uses 4096 as the page size
+    4096
+}
+
+pub(crate) fn alloc_zeroed_page_aligned(size: usize) -> *mut u8 {
+    assert!(size != 0);
+
+    let page_size = page_size();
+    let pages = (size + page_size - 1) / page_size;
+
+    let ptr = {
+        // Max address mapped by src/arch paging code (8 GiB)
+        let mut ptr = 0x2_0000_0000;
+        status_to_result(
+            (std::system_table().BootServices.AllocatePages)(
+                1, // AllocateMaxAddress
+                MemoryType::EfiRuntimeServicesData, // Keeps this memory out of free space list
+                pages,
+                &mut ptr
+            )
+        ).unwrap();
+        ptr as *mut u8
+    };
+
+    assert!(!ptr.is_null());
+    unsafe { ptr::write_bytes(ptr, 0, pages * page_size) };
+    ptr
+}
+
 pub struct OsEfi {
     st: &'static SystemTable,
 }
@@ -53,32 +83,11 @@ impl Os<
     }
 
     fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8 {
-        assert!(size != 0);
-
-        let page_size = self.page_size();
-        let pages = (size + page_size - 1) / page_size;
-
-        let ptr = {
-            // Max address mapped by src/arch paging code (8 GiB)
-            let mut ptr = 0x2_0000_0000;
-            status_to_result(
-                (self.st.BootServices.AllocatePages)(
-                    1, // AllocateMaxAddress
-                    MemoryType::EfiRuntimeServicesData, // Keeps this memory out of free space list
-                    pages,
-                    &mut ptr
-                )
-            ).unwrap();
-            ptr as *mut u8
-        };
-
-        assert!(!ptr.is_null());
-        unsafe { ptr::write_bytes(ptr, 0, pages * page_size) };
-        ptr
+        alloc_zeroed_page_aligned(size)
     }
 
     fn page_size(&self) -> usize {
-        4096
+        page_size()
     }
 
     fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<DiskEfi>> {
