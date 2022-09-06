@@ -107,10 +107,17 @@ USE16
     mov ss, eax
 
     ; set stack
-    mov esp, 0x7C00 - 16
+    mov esp, 0x7C00 - 64
 
-    ; load registers
-    popad
+    ; load registers and ES
+    pop es
+    pop edi
+    pop esi
+    pop ebp
+    pop ebx
+    pop edx
+    pop ecx
+    pop eax
 
     ; enable interrupts
     sti
@@ -121,8 +128,15 @@ USE16
     ; disable interrupts
     cli
 
-    ; save registers
-    pushad
+    ; save registers and ES
+    push eax
+    push ecx
+    push edx
+    push ebx
+    push ebp
+    push esi
+    push edi
+    push es
 
     ; load gdt (BIOS sometimes overwrites this)
     lgdt [gdtr]
