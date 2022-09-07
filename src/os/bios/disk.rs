@@ -49,19 +49,36 @@ impl DiskBios {
     pub fn new(boot_disk: u8, thunk13: extern "C" fn()) -> Self {
         let chs_opt = unsafe {
             let mut data = ThunkData::new();
-            data.eax = 0x0800;
+            data.eax = 0x4100;
+            data.ebx = 0x55AA;
             data.edx = boot_disk as u32;
-            data.edi = 0;
 
             data.with(thunk13);
 
-            let c =
-                (data.ecx >> 8) & 0xFF |
-                ((data.ecx >> 6) & 0x3) << 8;
-            let h = ((data.edx >> 8) & 0xFF) + 1;
-            let s = data.ecx & 0x3F;
-            
-            Some((c, h, s))
+            if (data.ebx & 0xFFFF) == 0xAA55 {
+                // Extensions are installed, do not use CHS
+                None
+            } else {
+                // Extensions are not installed, get CHS geometry
+                data = ThunkData::new();
+                data.eax = 0x0800;
+                data.edx = boot_disk as u32;
+                data.edi = 0;
+
+                data.with(thunk13);
+
+                //TODO: return result on error
+                let ah = ({ data.eax } >> 8) & 0xFF;
+                assert_eq!(ah, 0);
+
+                let c =
+                    (data.ecx >> 8) & 0xFF |
+                    ((data.ecx >> 6) & 0x3) << 8;
+                let h = ((data.edx >> 8) & 0xFF) + 1;
+                let s = data.ecx & 0x3F;
+
+                Some((c, h, s))
+            }
         };
 
         Self {
@@ -87,21 +104,21 @@ impl Disk for DiskBios {
         }
 
         for (i, chunk) in buffer.chunks_mut((MAX_BLOCKS * BLOCK_SIZE) as usize).enumerate() {
-            let mut dap = DiskAddressPacket::from_block(
+            let dap = DiskAddressPacket::from_block(
                 block + i as u64 * MAX_BLOCKS,
                 chunk.len() as u64 / BLOCK_SIZE
             );
 
             if let Some((c_max, h_max, s_max)) = self.chs_opt {
                 let s = (dap.address % s_max as u64) + 1;
-                assert!(s <= 63);
+                assert!(s <= 63, "invalid sector {}", s);
 
                 let tmp = dap.address / s_max as u64;
                 let h = tmp % h_max as u64;
-                assert!(h <= 255);
+                assert!(h <= 255, "invalid head {}", h);
 
                 let c = tmp / h_max as u64;
-                assert!(c <= 1023);
+                assert!(c <= 1023, "invalid cylinder {}", c);
 
                 let mut data = ThunkData::new();
                 data.eax =
@@ -118,7 +135,7 @@ impl Disk for DiskBios {
                 data.es = dap.segment;
 
                 data.with(self.thunk13);
-                
+
                 //TODO: return result on error
                 let ah = ({ data.eax } >> 8) & 0xFF;
                 assert_eq!(ah, 0);
@@ -137,7 +154,7 @@ impl Disk for DiskBios {
                 assert_eq!(ah, 0);
 
                 //TODO: check blocks transferred
-                dap = ptr::read(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket);
+                // dap = ptr::read(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket);
             }
 
             ptr::copy(DISK_BIOS_ADDR as *const u8, chunk.as_mut_ptr(), chunk.len());
