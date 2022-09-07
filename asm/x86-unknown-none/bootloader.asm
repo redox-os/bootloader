@@ -15,7 +15,12 @@ stage2.end:
 ; the maximum size of stage2 is 4 KiB
 times (4*1024)-($-stage2) db 0
 
-; stage3, loaded at 0xD000
+; ISO compatibility, uses up space until 0x12400
+%include "iso.asm"
+
+times 3072 db 0 ; Pad to 0x13000
+
+; stage3, loaded at 0x13000
 stage3:
     %defstr STAGE3_STR %[STAGE3]
     incbin STAGE3_STR
