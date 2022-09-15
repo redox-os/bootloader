@@ -11,7 +11,9 @@ db "CD001" ; Identifier
 db 1 ; Version
 db 0 ; Unused
 times 32 db ' ' ; System identifier
-times 32 db ' ' ; Volume identifier
+.volume_id: ; Volume identifier
+db 'Redox OS'
+times 32-($-.volume_id) db ' '
 times 8 db 0 ; Unused
 db 0x15, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x15 ; Volume space size (0x15)
 times 32 db 0 ; Unused
