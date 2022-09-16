@@ -42,17 +42,14 @@ impl Iterator for VideoModeIter {
 
                 let width = mode.HorizontalResolution;
                 let height = mode.VerticalResolution;
-
-                // We do not support framebuffers which have padding on each line
-                if width != mode.PixelsPerScanLine {
-                    continue;
-                }
+                let stride = mode.PixelsPerScanLine;
 
                 return Some(OsVideoMode {
                     id: id as u32,
                     width,
                     height,
-                    // TODO
+                    stride,
+                    // Base is retrieved later by setting the mode
                     base: 0,
                 });
             }

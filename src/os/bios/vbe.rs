@@ -130,16 +130,14 @@ impl Iterator for VideoModeIter {
 
                 let width = mode_info.xresolution as u32;
                 let height = mode_info.yresolution as u32;
-
-                // We do not support framebuffers which have padding on each line
-                if width * 4 != mode_info.bytesperscanline as u32 {
-                    continue;
-                }
+                //TODO: support stride that is not a multiple of 4
+                let stride = mode_info.bytesperscanline as u32 / 4;
 
                 return Some(OsVideoMode {
                     id: mode as u32,
                     width,
                     height,
+                    stride,
                     base: mode_info.physbaseptr as u64,
                 });
             } else {

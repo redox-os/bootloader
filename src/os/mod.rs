@@ -51,6 +51,7 @@ pub struct OsVideoMode {
     pub id: u32,
     pub width: u32,
     pub height: u32,
+    pub stride: u32,
     pub base: u64,
 }
 

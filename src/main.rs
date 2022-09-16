@@ -510,7 +510,7 @@ fn main<
                     os,
                     page_phys,
                     mode.base,
-                    (mode.width * mode.height * 4) as u64
+                    (mode.stride * mode.height * 4) as u64
                 )
             }.expect("Failed to map framebuffer");
 
@@ -518,6 +518,7 @@ fn main<
             writeln!(w, "FRAMEBUFFER_VIRT={:016x}", virt).unwrap();
             writeln!(w, "FRAMEBUFFER_WIDTH={:016x}", mode.width).unwrap();
             writeln!(w, "FRAMEBUFFER_HEIGHT={:016x}", mode.height).unwrap();
+            writeln!(w, "FRAMEBUFFER_STRIDE={:016x}", mode.stride).unwrap();
         }
         writeln!(w, "INITFS_OFFSET={:016x}", initfs_offset).unwrap();
         writeln!(w, "INITFS_LENGTH={:016x}", initfs_len).unwrap();
