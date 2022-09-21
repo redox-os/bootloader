@@ -92,18 +92,30 @@ impl Os<
 
     fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<DiskEfi>> {
         for block_io in DiskEfi::all().into_iter() {
-            if !block_io.0.Media.LogicalPartition {
-                continue;
-            }
-
-            match redoxfs::FileSystem::open(block_io, password_opt, Some(0), false) {
-                Ok(ok) => return Ok(ok),
-                Err(err) => match err.errno {
-                    // Ignore header not found error
-                    syscall::ENOENT => (),
-                    // Return any other errors
-                    _ => {
-                        return Err(err)
+            if block_io.0.Media.LogicalPartition {
+                match redoxfs::FileSystem::open(block_io, password_opt, Some(0), false) {
+                    Ok(ok) => return Ok(ok),
+                    Err(err) => match err.errno {
+                        // Ignore header not found error
+                        syscall::ENOENT => (),
+                        // Return any other errors
+                        _ => {
+                            return Err(err)
+                        }
+                    }
+                }
+            } else {
+                //TODO: get block from partition table
+                let block = crate::MIBI as u64 / redoxfs::BLOCK_SIZE;
+                match redoxfs::FileSystem::open(block_io, password_opt, Some(block), false) {
+                    Ok(ok) => return Ok(ok),
+                    Err(err) => match err.errno {
+                        // Ignore header not found error
+                        syscall::ENOENT => (),
+                        // Return any other errors
+                        _ => {
+                            return Err(err)
+                        }
                     }
                 }
             }
