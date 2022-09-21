@@ -86,7 +86,7 @@ impl Os<
         let disk = DiskBios::new(u8::try_from(self.boot_disk).unwrap(), self.thunk13);
 
         //TODO: get block from partition table
-        let block = crate::MIBI as u64 / redoxfs::BLOCK_SIZE;
+        let block = 2 * crate::MIBI as u64 / redoxfs::BLOCK_SIZE;
         redoxfs::FileSystem::open(disk, password_opt, Some(block), false)
     }
 

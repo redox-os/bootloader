@@ -79,7 +79,7 @@ iso_boot_catalog:
 ; Validation entry
 .validation:
 db 1 ; Header ID
-db 0 ; Platform ID
+db 0 ; Platform ID (x86)
 dw 0 ; Reserved
 times 24 db 0 ; ID string
 dw 0x55aa ; Checksum
@@ -94,6 +94,24 @@ db 0xEE ; Partition type (0xEE is protective MBR)
 db 0 ; Unused
 dw 1 ; Sector count
 dd 0 ; Start address for virtual disk
+times 20 db 0 ; Padding
+
+; EFI section header entry
+.efi_section_header:
+db 0x91 ; Final header
+db 0xEF ; Platform ID (EFI)
+dw 1 ; Number of section header entries
+times 28 db 0 ; ID string
+
+; EFI section entry
+.efi_section_entry:
+db 0x88 ; Bootable
+db 0 ; No emulation
+dw 0 ; Load segment (0 is platform default)
+db 0 ; Partition type (not used)
+db 0 ; Unused
+dw 512 ; Sector count (1 MiB = 512 CD sectors)
+dd 512 ; Start address for virtual disk (1 MiB = 512 CD sectors)
 times 20 db 0 ; Padding
 
 ; Fill until CD sector 0x14

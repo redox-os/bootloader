@@ -106,7 +106,7 @@ impl Os<
                 }
             } else {
                 //TODO: get block from partition table
-                let block = crate::MIBI as u64 / redoxfs::BLOCK_SIZE;
+                let block = 2 * crate::MIBI as u64 / redoxfs::BLOCK_SIZE;
                 match redoxfs::FileSystem::open(block_io, password_opt, Some(block), false) {
                     Ok(ok) => return Ok(ok),
                     Err(err) => match err.errno {
