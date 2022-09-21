@@ -42,11 +42,11 @@ const KIBI: usize = 1024;
 const MIBI: usize = KIBI * KIBI;
 
 //TODO: allocate this in a more reasonable manner
-pub static mut AREAS: [OsMemoryEntry; 512] = [OsMemoryEntry {
+pub static mut AREAS: [OsMemoryEntry; 1024] = [OsMemoryEntry {
     base: 0,
     size: 0,
     kind: OsMemoryKind::Null,
-}; 512];
+}; 1024];
 
 pub static mut KERNEL_64BIT: bool = false;
 
