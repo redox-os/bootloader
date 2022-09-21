@@ -92,6 +92,10 @@ impl Os<
 
     fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<DiskEfi>> {
         for block_io in DiskEfi::all().into_iter() {
+            if ! block_io.0.Media.MediaPresent {
+                continue;
+            }
+
             if block_io.0.Media.LogicalPartition {
                 match redoxfs::FileSystem::open(block_io, password_opt, Some(0), false) {
                     Ok(ok) => return Ok(ok),
