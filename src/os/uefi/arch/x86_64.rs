@@ -76,9 +76,7 @@ unsafe extern "C" fn kernel_entry(
 pub fn main() -> Result<()> {
     LOGGER.init();
 
-    let mut os = OsEfi {
-        st: std::system_table(),
-    };
+    let mut os = OsEfi::new();
 
     // Disable cursor
     let _ = (os.st.ConsoleOut.EnableCursor)(os.st.ConsoleOut, false);

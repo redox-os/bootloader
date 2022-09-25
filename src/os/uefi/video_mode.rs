@@ -11,9 +11,9 @@ pub struct VideoModeIter {
 }
 
 impl VideoModeIter {
-    pub fn new() -> Self {
+    pub fn new(output_opt: Option<Output>) -> Self {
         Self {
-            output_opt: Output::one().ok(),
+            output_opt,
             i: 0,
         }
     }

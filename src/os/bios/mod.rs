@@ -90,11 +90,16 @@ impl Os<
         redoxfs::FileSystem::open(disk, password_opt, Some(block), false)
     }
 
-    fn video_modes(&self) -> VideoModeIter {
+    fn video_outputs(&self) -> usize {
+        //TODO: return 1 only if vbe supported?
+        1
+    }
+
+    fn video_modes(&self, _output_i: usize) -> VideoModeIter {
         VideoModeIter::new(self.thunk10)
     }
 
-    fn set_video_mode(&self, mode: &mut OsVideoMode) {
+    fn set_video_mode(&self, _output_i: usize, mode: &mut OsVideoMode) {
         // Set video mode
         let mut data = ThunkData::new();
         data.eax = 0x4F02;
@@ -103,7 +108,7 @@ impl Os<
         //TODO: check result
     }
 
-    fn best_resolution(&self) -> Option<(u32, u32)> {
+    fn best_resolution(&self, _output_i: usize) -> Option<(u32, u32)> {
         let mut data = ThunkData::new();
         data.eax = 0x4F15;
         data.ebx = 0x01;

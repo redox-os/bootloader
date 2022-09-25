@@ -67,9 +67,10 @@ pub trait Os<
 
     fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<D>>;
 
-    fn video_modes(&self) -> V;
-    fn set_video_mode(&self, mode: &mut OsVideoMode);
-    fn best_resolution(&self) -> Option<(u32, u32)>;
+    fn video_outputs(&self) -> usize;
+    fn video_modes(&self, output_i: usize) -> V;
+    fn set_video_mode(&self, output_i: usize, mode: &mut OsVideoMode);
+    fn best_resolution(&self, output_i: usize) -> Option<(u32, u32)>;
 
     fn get_key(&self) -> OsKey;
 

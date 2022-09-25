@@ -1,4 +1,7 @@
+use alloc::vec::Vec;
 use core::{
+    cell::RefCell,
+    mem,
     ops::{ControlFlow, Try},
     ptr,
     slice
@@ -7,6 +10,8 @@ use std::{
     proto::Protocol,
 };
 use uefi::{
+    Handle,
+    boot::LocateSearchType,
     reset::ResetType,
     memory::MemoryType,
     status::{Result, Status},
@@ -66,6 +71,53 @@ pub(crate) fn alloc_zeroed_page_aligned(size: usize) -> *mut u8 {
 
 pub struct OsEfi {
     st: &'static SystemTable,
+    outputs: RefCell<Vec<(Output, Option<EdidActive>)>>,
+}
+
+impl OsEfi {
+    pub fn new() -> Self {
+        let st = std::system_table();
+        let mut outputs = Vec::new();
+        {
+            let guid = Output::guid();
+            let mut handles = Vec::with_capacity(256);
+            let mut len = handles.capacity() * mem::size_of::<Handle>();
+            status_to_result(
+                (st.BootServices.LocateHandle)(
+                    LocateSearchType::ByProtocol,
+                    &guid,
+                    0,
+                    &mut len,
+                    handles.as_mut_ptr()
+                )
+            ).unwrap();
+            unsafe { handles.set_len(len / mem::size_of::<Handle>()); }
+            for handle in handles {
+                //TODO: do we have to query all modes to get good edid?
+                match Output::handle_protocol(handle) {
+                    Ok(output) => {
+                        outputs.push((
+                            output,
+                            match EdidActive::handle_protocol(handle) {
+                                Ok(efi_edid) => Some(efi_edid),
+                                Err(err) => {
+                                    log::warn!("Failed to get EFI EDID from handle {:?}: {:?}", handle, err);
+                                    None
+                                }
+                            }
+                        ));
+                    },
+                    Err(err) => {
+                        log::warn!("Failed to get Output from handle {:?}: {:?}", handle, err);
+                    }
+                }
+            }
+        }
+        Self {
+            st,
+            outputs: RefCell::new(outputs),
+        }
+    }
 }
 
 impl Os<
@@ -127,12 +179,26 @@ impl Os<
         Err(syscall::Error::new(syscall::ENOENT))
     }
 
-    fn video_modes(&self) -> VideoModeIter {
-        VideoModeIter::new()
+    fn video_outputs(&self) -> usize {
+        self.outputs.borrow().len()
     }
 
-    fn set_video_mode(&self, mode: &mut OsVideoMode) {
-        let output = Output::one().unwrap();
+    fn video_modes(&self, output_i: usize) -> VideoModeIter {
+        let output_opt = match self.outputs.borrow_mut().get_mut(output_i) {
+            Some(output) => unsafe {
+                // Hack to enable clone
+                let ptr = output.0.0 as *mut _;
+                Some(Output::new(&mut *ptr))
+            },
+            None => None,
+        };
+        VideoModeIter::new(output_opt)
+    }
+
+    fn set_video_mode(&self, output_i: usize, mode: &mut OsVideoMode) {
+        //TODO: return error?
+        let mut outputs = self.outputs.borrow_mut();
+        let (output, _efi_edid_opt) = &mut outputs[output_i];
         status_to_result(
             (output.0.SetMode)(output.0, mode.id)
         ).unwrap();
@@ -143,42 +209,30 @@ impl Os<
         mode.base = output.0.Mode.FrameBufferBase as u64;
     }
 
-    fn best_resolution(&self) -> Option<(u32, u32)> {
-        //TODO: get this per output
-        match EdidActive::one() {
-            Ok(efi_edid) => {
-                let edid = unsafe {
-                    slice::from_raw_parts(efi_edid.0.Edid, efi_edid.0.SizeOfEdid as usize)
-                };
+    fn best_resolution(&self, output_i: usize) -> Option<(u32, u32)> {
+        let mut outputs = self.outputs.borrow_mut();
+        let (output, efi_edid_opt) = outputs.get_mut(output_i)?;
 
-                if edid.len() > 0x3D {
-                    Some((
-                        (edid[0x38] as u32) | (((edid[0x3A] as u32) & 0xF0) << 4),
-                        (edid[0x3B] as u32) | (((edid[0x3D] as u32) & 0xF0) << 4),
-                    ))
-                } else {
-                    log::warn!("EFI EDID too small: {}", edid.len());
-                    None
-                }
-            },
-            Err(err) => {
-                log::warn!("Failed to get EFI EDID: {:?}", err);
+        if let Some(efi_edid) = efi_edid_opt {
+            let edid = unsafe {
+                slice::from_raw_parts(efi_edid.0.Edid, efi_edid.0.SizeOfEdid as usize)
+            };
 
-                // Fallback to the current output resolution
-                match Output::one() {
-                    Ok(output) => {
-                        Some((
-                            output.0.Mode.Info.HorizontalResolution,
-                            output.0.Mode.Info.VerticalResolution,
-                        ))
-                    },
-                    Err(err) => {
-                        log::error!("Failed to get output: {:?}", err);
-                        None
-                    }
-                }
+            if edid.len() > 0x3D {
+                return Some((
+                    (edid[0x38] as u32) | (((edid[0x3A] as u32) & 0xF0) << 4),
+                    (edid[0x3B] as u32) | (((edid[0x3D] as u32) & 0xF0) << 4),
+                ));
+            } else {
+                log::warn!("EFI EDID too small: {}", edid.len());
             }
         }
+
+        // Fallback to the current output resolution
+        Some((
+            output.0.Mode.Info.HorizontalResolution,
+            output.0.Mode.Info.VerticalResolution,
+        ))
     }
 
     fn get_key(&self) -> OsKey {

@@ -103,9 +103,9 @@ pub struct KernelArgs {
 fn select_mode<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>) -> Option<OsVideoMode> {
+>(os: &mut dyn Os<D, V>, output: usize) -> Option<OsVideoMode> {
     let mut modes = Vec::new();
-    for mode in os.video_modes() {
+    for mode in os.video_modes(output) {
         let mut aspect_w = mode.width;
         let mut aspect_h = mode.height;
         for i in 2..cmp::min(aspect_w / 2, aspect_h / 2) {
@@ -130,7 +130,7 @@ fn select_mode<
 
     // Set selected based on best resolution
     let mut selected = modes.get(0).map_or(0, |x| x.0.id);
-    if let Some((best_width, best_height)) = os.best_resolution() {
+    if let Some((best_width, best_height)) = os.best_resolution(output) {
         println!("Best resolution: {}x{}", best_width, best_height);
         for (mode, _text) in modes.iter() {
             if mode.width == best_width && mode.height == best_height {
@@ -375,6 +375,19 @@ fn main<
 >(os: &mut dyn Os<D, V>) -> (usize, u64, KernelArgs) {
     println!("Redox OS Bootloader {} on {}", env!("CARGO_PKG_VERSION"), os.name());
 
+    /*TODO: support multiple outputs
+    for output_i in 0..os.video_outputs() {
+        print!("{}:", output_i);
+        if let Some(best) = os.best_resolution(output_i) {
+            print!(" *{}x{}*", best.0, best.1);
+        }
+        for mode in os.video_modes(output_i) {
+            print!(" {}x{}", mode.width, mode.height);
+        }
+        println!();
+    }
+    */
+
     let (mut fs, password_opt) = redoxfs(os);
 
     print!("RedoxFS ");
@@ -387,7 +400,7 @@ fn main<
     }
     println!(": {} MiB", fs.header.size() / MIBI as u64);
 
-    let mode_opt = select_mode(os);
+    let mode_opt = select_mode(os, 0);
 
     let stack_size = 128 * KIBI;
     let stack_base = os.alloc_zeroed_page_aligned(stack_size);
@@ -503,7 +516,7 @@ fn main<
 
         if let Some(mut mode) = mode_opt {
             // Set mode to get updated values
-            os.set_video_mode(&mut mode);
+            os.set_video_mode(0, &mut mode);
 
             let virt = unsafe {
                 paging_framebuffer(

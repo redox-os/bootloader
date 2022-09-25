@@ -99,9 +99,7 @@ pub fn main() -> Result<()> {
     //TODO: support this in addition to ACPI?
     // let dtb = find_dtb()?;
 
-    let mut os = OsEfi {
-        st: std::system_table(),
-    };
+    let mut os = OsEfi::new();
 
     // Disable cursor
     let _ = (os.st.ConsoleOut.EnableCursor)(os.st.ConsoleOut, false);
