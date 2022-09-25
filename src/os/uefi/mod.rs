@@ -77,7 +77,7 @@ pub struct OsEfi {
 impl OsEfi {
     pub fn new() -> Self {
         let st = std::system_table();
-        let mut outputs = Vec::new();
+        let mut outputs = Vec::<(Output, Option<EdidActive>)>::new();
         {
             let guid = Output::guid();
             let mut handles = Vec::with_capacity(256);
@@ -92,14 +92,22 @@ impl OsEfi {
                 )
             ).unwrap();
             unsafe { handles.set_len(len / mem::size_of::<Handle>()); }
-            for handle in handles {
+            'handles: for handle in handles {
                 //TODO: do we have to query all modes to get good edid?
                 match Output::handle_protocol(handle) {
                     Ok(output) => {
                         log::debug!("Output {:?} at {:x}", handle, output.0.Mode.FrameBufferBase);
+
                         if output.0.Mode.FrameBufferBase == 0 {
                             log::debug!("Skipping output with frame buffer base of 0");
-                            continue;
+                            continue 'handles;
+                        }
+
+                        for other_output in outputs.iter() {
+                            if output.0.Mode.FrameBufferBase == other_output.0.0.Mode.FrameBufferBase {
+                                log::debug!("Skipping output with frame buffer base matching another output");
+                                continue 'handles;
+                            }
                         }
 
                         outputs.push((
