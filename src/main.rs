@@ -103,9 +103,9 @@ pub struct KernelArgs {
 fn select_mode<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, output: usize) -> Option<OsVideoMode> {
+>(os: &mut dyn Os<D, V>, output_i: usize) -> Option<OsVideoMode> {
     let mut modes = Vec::new();
-    for mode in os.video_modes(output) {
+    for mode in os.video_modes(output_i) {
         let mut aspect_w = mode.width;
         let mut aspect_h = mode.height;
         for i in 2..cmp::min(aspect_w / 2, aspect_h / 2) {
@@ -129,9 +129,10 @@ fn select_mode<
     modes.sort_by(|a, b| (b.0.width * b.0.height).cmp(&(a.0.width * a.0.height)));
 
     // Set selected based on best resolution
+    print!("Output {}", output_i);
     let mut selected = modes.get(0).map_or(0, |x| x.0.id);
-    if let Some((best_width, best_height)) = os.best_resolution(output) {
-        println!("Best resolution: {}x{}", best_width, best_height);
+    if let Some((best_width, best_height)) = os.best_resolution(output_i) {
+        print!(", best resolution: {}x{}", best_width, best_height);
         for (mode, _text) in modes.iter() {
             if mode.width == best_width && mode.height == best_height {
                 selected = mode.id;
@@ -139,8 +140,8 @@ fn select_mode<
             }
         }
     }
-
     println!();
+
     println!("Arrow keys and enter select mode");
     println!();
     print!(" ");
@@ -375,19 +376,6 @@ fn main<
 >(os: &mut dyn Os<D, V>) -> (usize, u64, KernelArgs) {
     println!("Redox OS Bootloader {} on {}", env!("CARGO_PKG_VERSION"), os.name());
 
-    /*TODO: support multiple outputs
-    for output_i in 0..os.video_outputs() {
-        print!("{}:", output_i);
-        if let Some(best) = os.best_resolution(output_i) {
-            print!(" *{}x{}*", best.0, best.1);
-        }
-        for mode in os.video_modes(output_i) {
-            print!(" {}x{}", mode.width, mode.height);
-        }
-        println!();
-    }
-    */
-
     let (mut fs, password_opt) = redoxfs(os);
 
     print!("RedoxFS ");
@@ -399,8 +387,15 @@ fn main<
         print!("{:>02x}", fs.header.uuid()[i]);
     }
     println!(": {} MiB", fs.header.size() / MIBI as u64);
+    println!();
 
-    let mode_opt = select_mode(os, 0);
+    let mut mode_opts = Vec::new();
+    for output_i in 0..os.video_outputs() {
+        if output_i > 0 {
+            os.clear_text();
+        }
+        mode_opts.push(select_mode(os, output_i));
+    }
 
     let stack_size = 128 * KIBI;
     let stack_base = os.alloc_zeroed_page_aligned(stack_size);
@@ -514,24 +509,37 @@ fn main<
             writeln!(w, "REDOXFS_PASSWORD_SIZE={:016x}", password.len()).unwrap();
         }
 
-        if let Some(mut mode) = mode_opt {
-            // Set mode to get updated values
-            os.set_video_mode(0, &mut mode);
+        for output_i in 0..os.video_outputs() {
+            if let Some(mut mode) = mode_opts[output_i] {
+                // Set mode to get updated values
+                os.set_video_mode(output_i, &mut mode);
 
-            let virt = unsafe {
-                paging_framebuffer(
-                    os,
-                    page_phys,
-                    mode.base,
-                    (mode.stride * mode.height * 4) as u64
-                )
-            }.expect("Failed to map framebuffer");
+                if output_i == 0 {
+                    let virt = unsafe {
+                        paging_framebuffer(
+                            os,
+                            page_phys,
+                            mode.base,
+                            (mode.stride * mode.height * 4) as u64
+                        )
+                    }.expect("Failed to map framebuffer");
 
-            writeln!(w, "FRAMEBUFFER_ADDR={:016x}", mode.base).unwrap();
-            writeln!(w, "FRAMEBUFFER_VIRT={:016x}", virt).unwrap();
-            writeln!(w, "FRAMEBUFFER_WIDTH={:016x}", mode.width).unwrap();
-            writeln!(w, "FRAMEBUFFER_HEIGHT={:016x}", mode.height).unwrap();
-            writeln!(w, "FRAMEBUFFER_STRIDE={:016x}", mode.stride).unwrap();
+                    writeln!(w, "FRAMEBUFFER_ADDR={:016x}", mode.base).unwrap();
+                    writeln!(w, "FRAMEBUFFER_VIRT={:016x}", virt).unwrap();
+                    writeln!(w, "FRAMEBUFFER_WIDTH={:016x}", mode.width).unwrap();
+                    writeln!(w, "FRAMEBUFFER_HEIGHT={:016x}", mode.height).unwrap();
+                    writeln!(w, "FRAMEBUFFER_STRIDE={:016x}", mode.stride).unwrap();
+                } else {
+                    writeln!(w,
+                        "FRAMEBUFFER{}={:#x},{},{},{}",
+                        output_i,
+                        mode.base,
+                        mode.width,
+                        mode.height,
+                        mode.stride,
+                    ).unwrap();
+                }
+            }
         }
         writeln!(w, "INITFS_OFFSET={:016x}", initfs_offset).unwrap();
         writeln!(w, "INITFS_LENGTH={:016x}", initfs_len).unwrap();

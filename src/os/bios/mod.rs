@@ -151,6 +151,10 @@ impl Os<
         }
     }
 
+    fn clear_text(&self) {
+        //TODO: clear screen for VGA
+    }
+
     fn get_text_position(&self) -> (usize, usize) {
         let vga = VGA.lock();
         (vga.x, vga.y)

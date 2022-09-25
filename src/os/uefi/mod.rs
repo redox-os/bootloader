@@ -96,6 +96,12 @@ impl OsEfi {
                 //TODO: do we have to query all modes to get good edid?
                 match Output::handle_protocol(handle) {
                     Ok(output) => {
+                        log::debug!("Output {:?} at {:x}", handle, output.0.Mode.FrameBufferBase);
+                        if output.0.Mode.FrameBufferBase == 0 {
+                            log::debug!("Skipping output with frame buffer base of 0");
+                            continue;
+                        }
+
                         outputs.push((
                             output,
                             match EdidActive::handle_protocol(handle) {
@@ -267,6 +273,12 @@ impl Os<
             8 => OsKey::Delete,
             _ => OsKey::Other,
         }
+    }
+
+    fn clear_text(&self) {
+        status_to_result(
+            (self.st.ConsoleOut.ClearScreen)(self.st.ConsoleOut)
+        ).unwrap();
     }
 
     fn get_text_position(&self) -> (usize, usize) {
