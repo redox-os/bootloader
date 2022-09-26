@@ -82,7 +82,7 @@ impl OsEfi {
             let guid = Output::guid();
             let mut handles = Vec::with_capacity(256);
             let mut len = handles.capacity() * mem::size_of::<Handle>();
-            status_to_result(
+            match status_to_result(
                 (st.BootServices.LocateHandle)(
                     LocateSearchType::ByProtocol,
                     &guid,
@@ -90,40 +90,46 @@ impl OsEfi {
                     &mut len,
                     handles.as_mut_ptr()
                 )
-            ).unwrap();
-            unsafe { handles.set_len(len / mem::size_of::<Handle>()); }
-            'handles: for handle in handles {
-                //TODO: do we have to query all modes to get good edid?
-                match Output::handle_protocol(handle) {
-                    Ok(output) => {
-                        log::debug!("Output {:?} at {:x}", handle, output.0.Mode.FrameBufferBase);
+            ) {
+                Ok(_) => {
+                    unsafe { handles.set_len(len / mem::size_of::<Handle>()); }
+                    'handles: for handle in handles {
+                        //TODO: do we have to query all modes to get good edid?
+                        match Output::handle_protocol(handle) {
+                            Ok(output) => {
+                                log::debug!("Output {:?} at {:x}", handle, output.0.Mode.FrameBufferBase);
 
-                        if output.0.Mode.FrameBufferBase == 0 {
-                            log::debug!("Skipping output with frame buffer base of 0");
-                            continue 'handles;
-                        }
-
-                        for other_output in outputs.iter() {
-                            if output.0.Mode.FrameBufferBase == other_output.0.0.Mode.FrameBufferBase {
-                                log::debug!("Skipping output with frame buffer base matching another output");
-                                continue 'handles;
-                            }
-                        }
-
-                        outputs.push((
-                            output,
-                            match EdidActive::handle_protocol(handle) {
-                                Ok(efi_edid) => Some(efi_edid),
-                                Err(err) => {
-                                    log::warn!("Failed to get EFI EDID from handle {:?}: {:?}", handle, err);
-                                    None
+                                if output.0.Mode.FrameBufferBase == 0 {
+                                    log::debug!("Skipping output with frame buffer base of 0");
+                                    continue 'handles;
                                 }
+
+                                for other_output in outputs.iter() {
+                                    if output.0.Mode.FrameBufferBase == other_output.0.0.Mode.FrameBufferBase {
+                                        log::debug!("Skipping output with frame buffer base matching another output");
+                                        continue 'handles;
+                                    }
+                                }
+
+                                outputs.push((
+                                    output,
+                                    match EdidActive::handle_protocol(handle) {
+                                        Ok(efi_edid) => Some(efi_edid),
+                                        Err(err) => {
+                                            log::warn!("Failed to get EFI EDID from handle {:?}: {:?}", handle, err);
+                                            None
+                                        }
+                                    }
+                                ));
+                            },
+                            Err(err) => {
+                                log::warn!("Failed to get Output from handle {:?}: {:?}", handle, err);
                             }
-                        ));
-                    },
-                    Err(err) => {
-                        log::warn!("Failed to get Output from handle {:?}: {:?}", handle, err);
+                        }
                     }
+                },
+                Err(err) => {
+                    log::warn!("Failed to locate Outputs: {:?}", err);
                 }
             }
         }
