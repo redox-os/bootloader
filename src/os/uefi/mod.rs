@@ -174,9 +174,9 @@ impl Os<
                     Err(err) => match err.errno {
                         // Ignore header not found error
                         syscall::ENOENT => (),
-                        // Return any other errors
+                        // Print any other errors
                         _ => {
-                            return Err(err)
+                            log::warn!("BlockIo error: {:?}", err);
                         }
                     }
                 }
@@ -188,9 +188,9 @@ impl Os<
                     Err(err) => match err.errno {
                         // Ignore header not found error
                         syscall::ENOENT => (),
-                        // Return any other errors
+                        // Print any other errors
                         _ => {
-                            return Err(err)
+                            log::warn!("BlockIo error: {:?}", err);
                         }
                     }
                 }
