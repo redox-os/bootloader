@@ -1,5 +1,5 @@
 use std::{slice, vec::Vec};
-use uefi::guid::GuidKind;
+use uefi::guid;
 
 use crate::{Disk, Os, OsVideoMode};
 
@@ -65,9 +65,9 @@ pub(crate) fn find_acpi_table_pointers<
     let cfg_tables = std::system_table().config_tables();
 
     for (address, v2) in cfg_tables.iter().find_map(|cfg_table| {
-        if cfg_table.VendorGuid.kind() == GuidKind::Acpi {
+        if cfg_table.VendorGuid == guid::ACPI_TABLE_GUID {
             Some((cfg_table.VendorTable, false))
-        } else if cfg_table.VendorGuid.kind() == GuidKind::Acpi2 {
+        } else if cfg_table.VendorGuid == guid::ACPI_20_TABLE_GUID {
             Some((cfg_table.VendorTable, true))
         } else {
             None
