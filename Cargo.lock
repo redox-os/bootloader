@@ -123,9 +123,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.132"
+version = "0.2.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8371e4e5341c3a96db127eb2465ac681ced4c433e01dd0e938adbef26ba93ba5"
+checksum = "201de327520df007757c1f0adce6e827fe8562fbc28bfd9c15571c66ca1f5f79"
 
 [[package]]
 name = "linked_list_allocator"
@@ -202,24 +202,24 @@ dependencies = [
 
 [[package]]
 name = "redox_uefi"
-version = "0.1.5"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c483e82899e79d50a4ad1a5eb8f3fc918e9b37b0387d85510fa4cf21d2e3dda"
+checksum = "4143e69d22c9f79fd22cb37859a06af4936741c8ef70b5d6338953717feb68a5"
 
 [[package]]
 name = "redox_uefi_alloc"
-version = "0.1.4"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09eebe4aab0f8207676234160ffd94cb6c8660694079449ded0eea6a4e27ede1"
+checksum = "d12654bc506da36550bbd8e77438be985b839afdc98c0956fc7fd10fa9b45022"
 dependencies = [
  "redox_uefi",
 ]
 
 [[package]]
 name = "redox_uefi_std"
-version = "0.1.7"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ecc253339d4dc0606421b6118458ef45c184d76ccdc8e20296cdaddf2e401ae"
+checksum = "b9dea5dc3b2366e4611520a4983b27aa11f373c86f774eff1fd3f93d040c0ebd"
 dependencies = [
  "redox_uefi",
  "redox_uefi_alloc",
