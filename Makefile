@@ -17,6 +17,6 @@ $(BUILD)/filesystem:
 $(BUILD)/filesystem.bin: $(BUILD)/filesystem
 	mkdir -p $(BUILD)
 	rm -f $@.partial
-	fallocate -l 255MiB $@.partial
+	fallocate -l 254MiB $@.partial
 	redoxfs-ar $@.partial $<
 	mv $@.partial $@
