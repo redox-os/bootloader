@@ -257,8 +257,34 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                     Ok(sub_type) => match sub_type {
                         DevicePathMediaType::Harddrive if node_data.len() == mem::size_of::<DevicePathHarddrive>() => {
                             let harddrive = unsafe { ptr::read(node_data.as_ptr() as *const DevicePathHarddrive) };
-                            //TODO: print signature
-                            write!(s, "HD(0x{:X},0x{:X})", harddrive.partition_number, harddrive.signature_type)
+                            match harddrive.signature_type {
+                                1 => {
+                                    let id = unsafe { ptr::read(harddrive.partition_signature.as_ptr() as *const u32) };
+                                    write!(s, "HD(0x{:X},MBR,0x{:X})", harddrive.partition_number, id)
+                                },
+                                2 => {
+                                    let guid = unsafe { ptr::read(harddrive.partition_signature.as_ptr() as *const Guid) };
+                                    write!(
+                                        s,
+                                        "HD(0x{:X},GPT,{:08X}-{:04X}-{:04X}-{:02X}{:02X}-{:02X}{:02X}{:02X}{:02X}{:02X}{:02X})",
+                                        harddrive.partition_number,
+                                        guid.0,
+                                        guid.1,
+                                        guid.2,
+                                        guid.3[0],
+                                        guid.3[1],
+                                        guid.3[2],
+                                        guid.3[3],
+                                        guid.3[4],
+                                        guid.3[5],
+                                        guid.3[6],
+                                        guid.3[7],
+                                    )
+                                },
+                                _ => {
+                                    write!(s, "HD(0x{:X},0x{:X},{:X?})", harddrive.partition_number, harddrive.signature_type, harddrive.partition_signature)
+                                }
+                            }
                         },
                         DevicePathMediaType::Filepath => {
                             for chunk in node_data.chunks_exact(2) {
