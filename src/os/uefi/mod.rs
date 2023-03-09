@@ -12,8 +12,8 @@ use std::{
 use uefi::{
     Handle,
     boot::LocateSearchType,
-    reset::ResetType,
     memory::MemoryType,
+    reset::ResetType,
     status::{Result, Status},
     system::SystemTable,
     text::TextInputKey,
@@ -26,6 +26,7 @@ use crate::os::{
 };
 
 use self::{
+    device::{disk_device_priority, device_path_to_string},
     disk::DiskEfi,
     display::{EdidActive, Output},
     video_mode::VideoModeIter,
@@ -33,6 +34,7 @@ use self::{
 
 mod acpi;
 mod arch;
+mod device;
 mod disk;
 mod display;
 mod dtb;
@@ -163,39 +165,36 @@ impl Os<
     }
 
     fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<DiskEfi>> {
-        for block_io in DiskEfi::all().into_iter() {
-            if ! block_io.0.Media.MediaPresent {
+        // Search for RedoxFS on disks in prioritized order
+        println!("Looking for RedoxFS:");
+        for device in disk_device_priority() {
+            println!(" - {}", device_path_to_string(device.device_path.0));
+
+            if ! device.disk.0.Media.MediaPresent {
                 continue;
             }
 
-            if block_io.0.Media.LogicalPartition {
-                match redoxfs::FileSystem::open(block_io, password_opt, Some(0), false) {
-                    Ok(ok) => return Ok(ok),
-                    Err(err) => match err.errno {
-                        // Ignore header not found error
-                        syscall::ENOENT => (),
-                        // Print any other errors
-                        _ => {
-                            log::warn!("BlockIo error: {:?}", err);
-                        }
-                    }
-                }
+            let block = if device.disk.0.Media.LogicalPartition {
+                0
             } else {
                 //TODO: get block from partition table
-                let block = 2 * crate::MIBI as u64 / redoxfs::BLOCK_SIZE;
-                match redoxfs::FileSystem::open(block_io, password_opt, Some(block), false) {
-                    Ok(ok) => return Ok(ok),
-                    Err(err) => match err.errno {
-                        // Ignore header not found error
-                        syscall::ENOENT => (),
-                        // Print any other errors
-                        _ => {
-                            log::warn!("BlockIo error: {:?}", err);
-                        }
+                2 * crate::MIBI as u64 / redoxfs::BLOCK_SIZE
+            };
+
+            match redoxfs::FileSystem::open(device.disk, password_opt, Some(block), false) {
+                Ok(ok) => return Ok(ok),
+                Err(err) => match err.errno {
+                    // Ignore header not found error
+                    syscall::ENOENT => (),
+                    // Print any other errors
+                    _ => {
+                        log::warn!("BlockIo error: {:?}", err);
                     }
                 }
             }
         }
+
+        log::warn!("No RedoxFS partitions found");
         Err(syscall::Error::new(syscall::ENOENT))
     }
 
