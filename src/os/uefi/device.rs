@@ -244,9 +244,21 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                             let nsid = read_u32(0);
                             let eui = &node_data[4..];
                             if eui == &[0, 0, 0, 0, 0, 0, 0, 0] {
-                                write!(s, "Nvme(0x{:X})", nsid)
+                                write!(s, "NVMe(0x{:X})", nsid)
                             } else {
-                                write!(s, "Nvme(0x{:X},{:X?})", nsid, eui)
+                                write!(
+                                    s,
+                                    "NVMe(0x{:X},{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X})",
+                                    nsid,
+                                    eui[0],
+                                    eui[1],
+                                    eui[2],
+                                    eui[3],
+                                    eui[4],
+                                    eui[5],
+                                    eui[6],
+                                    eui[7],
+                                )
                             }
                         },
                         _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
