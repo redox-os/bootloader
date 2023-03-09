@@ -233,7 +233,7 @@ pub unsafe extern "C" fn start(
     let (heap_start, heap_size) = memory_map(os.thunk15)
         .expect("No memory for heap");
 
-    ALLOCATOR.lock().init(heap_start, heap_size);
+    ALLOCATOR.lock().init(heap_start as *mut u8, heap_size);
 
     let (page_phys, func, args) = crate::main(&mut os);
 
