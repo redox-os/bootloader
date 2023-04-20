@@ -2,7 +2,7 @@ SECTION .text
 USE16
 
 cpuid_required_features:
-    .edx equ cpuid_edx.fpu | cpuid_edx.pae | cpuid_edx.pse | cpuid_edx.pge | cpuid_edx.fxsr
+    .edx equ cpuid_edx.fpu | cpuid_edx.pse | cpuid_edx.pge | cpuid_edx.fxsr
     .ecx equ 0
 
 cpuid_check:
