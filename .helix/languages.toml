@@ -1,0 +1,5 @@
+[[language]]
+name = "rust"
+# TODO: Add more targets (BIOS, x86_32)
+# Uncomment this line and set cargo.target to your target to get accurate completions
+# config = { cargo.target = "aarch64-unknown-uefi", check.targets = ["x86_64-unknown-uefi", "aarch64-unknown-uefi"] }
