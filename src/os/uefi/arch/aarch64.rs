@@ -58,9 +58,17 @@ unsafe extern "C" fn kernel_entry(
     );
 
     // Set MAIR
+    // You can think about MAIRs as of an array with 8 elements each of 8 bits long.
+    // You can store inside MAIRs up to 8 attributes sets and reffer them by the index 0..7 stored in INDX (AttrIndx) field of the table descriptor.
+    // https://lowenware.com/blog/aarch64-mmu-programming/
+    // https://developer.arm.com/documentation/102376/0200/Describing-memory-in-AArch64
+    // https://developer.arm.com/documentation/ddi0595/2021-06/AArch64-Registers/MAIR-EL1--Memory-Attribute-Indirection-Register--EL1-
+    // Attribute 0 (0xFF) - normal memory, caches are enabled
+    // Attribute 1 (0x44) - normal memory, caches are disabled. Atomics wouldn't work here if memory doesn't support exclusive access (most real hardware don't)
+    // Attribute 2 (0x00) - nGnRnE device memory, caches are disabled, gathering, re-ordering, and early write acknowledgement aren't allowed.
     asm!(
         "msr mair_el1, {0}",
-        in(reg) 0xff4400, // MAIR: Arrange for Device, Normal Non-Cache, Normal Write-Back access types
+        in(reg) 0x00000000000044FF as u64, // MAIR: Arrange for Device, Normal Non-Cache, Normal Write-Back access types
     );
 
     // Set TCR
