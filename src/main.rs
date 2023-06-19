@@ -1,5 +1,6 @@
 #![no_std]
 #![feature(alloc_error_handler)]
+#![feature(int_roundings)]
 #![feature(lang_items)]
 #![cfg_attr(
     target_os = "uefi",
@@ -453,12 +454,12 @@ fn main<
 
     let (bootstrap_size, bootstrap_base, bootstrap_entry, initfs_offset, initfs_len) = {
         let bootstrap_slice = load_to_memory(os, &mut fs, "boot", "bootstrap", Filetype::Elf);
-        let bootstrap_len = (bootstrap_slice.len()+4095)/4096*4096;
+        let bootstrap_len = bootstrap_slice.len().next_multiple_of(4096);
         let (bootstrap_entry, bootstrap_64bit) = elf_entry(bootstrap_slice);
         unsafe { assert_eq!(KERNEL_64BIT, bootstrap_64bit); }
 
         let initfs_slice = load_to_memory(os, &mut fs, "boot", "initfs", Filetype::Other);
-        let initfs_len = (initfs_slice.len()+4095)/4096*4096;
+        let initfs_len = initfs_slice.len().next_multiple_of(4096);
 
         let memory = unsafe {
             let total_size = initfs_len + bootstrap_len;

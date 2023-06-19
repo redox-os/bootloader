@@ -23,6 +23,10 @@ unsafe fn paging_allocate<
     }
 }
 
+const PRESENT: u64 = 1;
+const WRITABLE: u64 = 1 << 1;
+const LARGE: u64 = 1 << 7;
+
 pub unsafe fn paging_create<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
@@ -35,50 +39,52 @@ pub unsafe fn paging_create<
         let pdp = paging_allocate(os)?;
 
         // Link first user and first kernel PML4 entry to PDP
-        pml4[0] = pdp.as_ptr() as u64 | 1 << 1 | 1;
-        pml4[256] = pdp.as_ptr() as u64 | 1 << 1 | 1;
+        pml4[0] = pdp.as_ptr() as u64 | WRITABLE | PRESENT;
+        pml4[256] = pdp.as_ptr() as u64 | WRITABLE | PRESENT;
 
         // Identity map 8 GiB using 2 MiB pages
         for pdp_i in 0..8 {
             let pd = paging_allocate(os)?;
-            pdp[pdp_i] = pd.as_ptr() as u64 | 1 << 1 | 1;
+            pdp[pdp_i] = pd.as_ptr() as u64 | WRITABLE | PRESENT;
             for pd_i in 0..pd.len() {
                 let addr =
                     pdp_i as u64 * 0x4000_0000 +
                     pd_i as u64 * 0x20_0000;
-                pd[pd_i] = addr | 1 << 7 | 1 << 1 | 1;
+                pd[pd_i] = addr | LARGE | WRITABLE | PRESENT;
             }
         }
     }
 
     {
-        // Create PDP for kernel mapping
+        // Create PDP (spanning 512 GiB) for kernel mapping
         let pdp = paging_allocate(os)?;
 
-        // Link second to last PML4 entry to PDP
-        pml4[510] = pdp.as_ptr() as u64 | 1 << 1 | 1;
+        // Link last PML4 entry to PDP
+        pml4[511] = pdp.as_ptr() as u64 | WRITABLE | PRESENT;
 
-        // Map kernel_size at kernel offset
+        // Create PD (spanning 1 GiB) for kernel mapping.
+        let pd = paging_allocate(os)?;
+
+        // The kernel is mapped at -2^31, i.e. 0xFFFF_FFFF_8000_0000. Since a PD is 1 GiB, link
+        // the second last PDP entry to PD.
+        pdp[510] = pd.as_ptr() as u64 | WRITABLE | PRESENT;
+
+        // Map kernel_size bytes to kernel offset, i.e. to the start of the PD.
+
         let mut kernel_mapped = 0;
-        let mut pdp_i = 0;
-        while kernel_mapped < kernel_size && pdp_i < pdp.len() {
-            let pd = paging_allocate(os)?;
-            pdp[pdp_i] = pd.as_ptr() as u64 | 1 << 1 | 1;
-            pdp_i += 1;
 
-            let mut pd_i = 0;
-            while kernel_mapped < kernel_size && pd_i < pd.len(){
-                let pt = paging_allocate(os)?;
-                pd[pd_i] = pt.as_ptr() as u64 | 1 << 1 | 1;
-                pd_i += 1;
+        let mut pd_idx = 0;
+        while kernel_mapped < kernel_size && pd_idx < pd.len(){
+            let pt = paging_allocate(os)?;
+            pd[pd_idx] = pt.as_ptr() as u64 | WRITABLE | PRESENT;
+            pd_idx += 1;
 
-                let mut pt_i = 0;
-                while kernel_mapped < kernel_size && pt_i < pt.len() {
-                    let addr = kernel_phys + kernel_mapped;
-                    pt[pt_i] = addr | 1 << 1 | 1;
-                    pt_i += 1;
-                    kernel_mapped += PAGE_SIZE as u64;
-                }
+            let mut pt_idx = 0;
+            while kernel_mapped < kernel_size && pt_idx < pt.len() {
+                let addr = kernel_phys + kernel_mapped;
+                pt[pt_idx] = addr | WRITABLE | PRESENT;
+                pt_idx += 1;
+                kernel_mapped += PAGE_SIZE as u64;
             }
         }
         assert!(kernel_mapped >= kernel_size);
