@@ -9,10 +9,10 @@ use crate::{
 
 use super::super::{
     OsEfi,
-    acpi::{
+    dtb::{
         RSDPS_AREA_BASE,
         RSDPS_AREA_SIZE,
-        find_acpi_table_pointers,
+        find_dtb,
     },
     memory_map::memory_map,
 };
@@ -112,7 +112,7 @@ pub fn main() -> Result<()> {
     // Disable cursor
     let _ = (os.st.ConsoleOut.EnableCursor)(os.st.ConsoleOut, false);
 
-    find_acpi_table_pointers(&mut os);
+    find_dtb(&mut os);
 
     let (page_phys, func, mut args) = crate::main(&mut os);
 
