@@ -269,17 +269,18 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                     Ok(sub_type) => match sub_type {
                         DevicePathMediaType::Harddrive if node_data.len() == mem::size_of::<DevicePathHarddrive>() => {
                             let harddrive = unsafe { ptr::read(node_data.as_ptr() as *const DevicePathHarddrive) };
+                            let partition_number = unsafe { ptr::read_unaligned(ptr::addr_of!(harddrive.partition_number)) };
                             match harddrive.signature_type {
                                 1 => {
                                     let id = unsafe { ptr::read(harddrive.partition_signature.as_ptr() as *const u32) };
-                                    write!(s, "HD(0x{:X},MBR,0x{:X})", harddrive.partition_number, id)
+                                    write!(s, "HD(0x{:X},MBR,0x{:X})", partition_number, id)
                                 },
                                 2 => {
                                     let guid = unsafe { ptr::read(harddrive.partition_signature.as_ptr() as *const Guid) };
                                     write!(
                                         s,
                                         "HD(0x{:X},GPT,{:08X}-{:04X}-{:04X}-{:02X}{:02X}-{:02X}{:02X}{:02X}{:02X}{:02X}{:02X})",
-                                        harddrive.partition_number,
+                                        partition_number,
                                         guid.0,
                                         guid.1,
                                         guid.2,
@@ -294,7 +295,7 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                                     )
                                 },
                                 _ => {
-                                    write!(s, "HD(0x{:X},0x{:X},{:X?})", harddrive.partition_number, harddrive.signature_type, harddrive.partition_signature)
+                                    write!(s, "HD(0x{:X},0x{:X},{:X?})", partition_number, harddrive.signature_type, harddrive.partition_signature)
                                 }
                             }
                         },

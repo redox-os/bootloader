@@ -1,6 +1,6 @@
 use bitflags::bitflags;
 use core::convert::TryInto;
-use core::fmt;
+use core::ptr::{addr_of, addr_of_mut};
 use syscall::io::{Io, Mmio, ReadOnly};
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use syscall::io::Pio;
@@ -71,24 +71,23 @@ where
     T::Value: From<u8> + TryInto<u8>,
 {
     pub fn init(&mut self) {
-        // Disable all interrupts
-        self.int_en.write(0x00.into());
-        // Use DLAB register
-        self.line_ctrl.write(0x80.into());
-        // Set divisor to 1 (115200 baud)
-        self.data.write(0x01.into());
-        self.int_en.write(0x00.into());
-        // 8 bits, no parity, one stop bit
-        self.line_ctrl.write(0x03.into());
-        // Enable FIFO, clear FIFO, 14-byte threshold
-        self.fifo_ctrl.write(0xC7.into());
-        // Enable IRQs and set RTS/DSR
-        self.modem_ctrl.write(0x0B.into());
+        unsafe {
+            //TODO: Cleanup
+            // FIXME: Fix UB if unaligned
+            (&mut *addr_of_mut!(self.int_en)).write(0x00.into());
+            (&mut *addr_of_mut!(self.line_ctrl)).write(0x80.into());
+            (&mut *addr_of_mut!(self.data)).write(0x01.into());
+            (&mut *addr_of_mut!(self.int_en)).write(0x00.into());
+            (&mut *addr_of_mut!(self.line_ctrl)).write(0x03.into());
+            (&mut *addr_of_mut!(self.fifo_ctrl)).write(0xC7.into());
+            (&mut *addr_of_mut!(self.modem_ctrl)).write(0x0B.into());
+            (&mut *addr_of_mut!(self.int_en)).write(0x01.into());
+        }
     }
 
     fn line_sts(&self) -> LineStsFlags {
         LineStsFlags::from_bits_truncate(
-            (self.line_sts.read() & 0xFF.into())
+            (unsafe { &*addr_of!(self.line_sts) }.read() & 0xFF.into())
                 .try_into()
                 .unwrap_or(0),
         )
@@ -97,7 +96,7 @@ where
     pub fn receive(&mut self) -> Option<u8> {
         if self.line_sts().contains(LineStsFlags::INPUT_FULL) {
             Some(
-                (self.data.read() & 0xFF.into())
+                (unsafe { &*addr_of!(self.data) }.read() & 0xFF.into())
                     .try_into()
                     .unwrap_or(0),
             )
@@ -108,7 +107,7 @@ where
 
     pub fn send(&mut self, data: u8) {
         while !self.line_sts().contains(LineStsFlags::OUTPUT_EMPTY) {}
-        self.data.write(data.into())
+        unsafe { &mut *addr_of_mut!(self.data) }.write(data.into())
     }
 
     pub fn write(&mut self, buf: &[u8]) {
@@ -128,13 +127,5 @@ where
                 }
             }
         }
-    }
-}
-
-impl<T: Io> fmt::Write for SerialPort<T>
-where T::Value: From<u8> + TryInto<u8> {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write(s.as_bytes());
-        Ok(())
     }
 }

@@ -8,8 +8,6 @@
     feature(control_flow_enum),
     feature(try_trait_v2),
 )]
-//TODO: remove instances
-#![warn(unaligned_references)]
 
 #[cfg_attr(target_os = "none", macro_use)]
 extern crate alloc;
