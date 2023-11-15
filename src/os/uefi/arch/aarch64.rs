@@ -17,11 +17,6 @@ use super::super::{
     memory_map::memory_map,
 };
 
-#[no_mangle]
-pub extern "C" fn __chkstk() {
-    //TODO
-}
-
 unsafe extern "C" fn kernel_entry(
     page_phys: usize,
     stack: u64,
