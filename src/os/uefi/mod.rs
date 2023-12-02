@@ -37,7 +37,7 @@ mod arch;
 mod device;
 mod disk;
 mod display;
-mod dtb;
+pub mod dtb;
 mod memory_map;
 mod video_mode;
 
