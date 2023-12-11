@@ -37,6 +37,7 @@ mod arch;
 mod device;
 mod disk;
 mod display;
+#[cfg(target_arch = "aarch64")]
 pub mod dtb;
 mod memory_map;
 mod video_mode;
