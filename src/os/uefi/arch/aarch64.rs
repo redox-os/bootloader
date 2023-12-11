@@ -30,7 +30,6 @@ unsafe extern "C" fn kernel_entry(
         memory_iter.set_virtual_address_map(PHYS_OFFSET);
         mem::forget(memory_iter);
     }
-
     // Disable interrupts
     asm!("msr daifset, #2");
 
@@ -47,6 +46,7 @@ unsafe extern "C" fn kernel_entry(
     asm!(
         "dsb sy", // Data sync barrier
         "msr ttbr1_el1, {0}", // Set higher half page table
+        "msr ttbr0_el1, {0}", // Set lower half page table
         "isb", // Instruction sync barrier
         "tlbi vmalle1is", // Invalidate TLB
         in(reg) page_phys,
