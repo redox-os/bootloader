@@ -22,7 +22,7 @@ redox_syscall = "0.2.16"
 spin = "0.9.5"
 
 [dependencies.redoxfs]
-version = "0.5.4"
+version = "0.5.12"
 default-features = false
 features = ["force-soft", "log"]
 
