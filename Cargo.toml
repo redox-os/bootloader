@@ -24,7 +24,7 @@ spin = "0.9.5"
 [dependencies.redoxfs]
 version = "0.5.4"
 default-features = false
-features = ["force-soft"]
+features = ["force-soft", "log"]
 
 [target.'cfg(target_os = "uefi")'.dependencies]
 redox_uefi = { git = "https://gitlab.redox-os.org/redox-os/uefi.git" }
