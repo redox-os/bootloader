@@ -1,9 +1,9 @@
-use byteorder::BE;
 use byteorder::ByteOrder;
+use byteorder::BE;
+use fdt;
+use std::{slice, vec::Vec};
 use uefi::guid::GuidKind;
 use uefi::status::{Error, Result};
-use std::{slice, vec::Vec};
-use fdt;
 
 use crate::{Disk, Os, OsVideoMode};
 
@@ -38,7 +38,7 @@ unsafe fn get_dev_mem_region(fdt: &fdt::Fdt) {
                         BE::read_u32(&chunk[0..8]) as u64
                     } else {
                         DEV_MEM_AREA.clear();
-                        return ;
+                        return;
                     }
                 };
                 let parent_bus_addr = {
@@ -48,7 +48,7 @@ unsafe fn get_dev_mem_region(fdt: &fdt::Fdt) {
                         BE::read_u32(&chunk[8..16]) as u64
                     } else {
                         DEV_MEM_AREA.clear();
-                        return ;
+                        return;
                     }
                 };
                 let addr_size = {
@@ -58,47 +58,84 @@ unsafe fn get_dev_mem_region(fdt: &fdt::Fdt) {
                         BE::read_u32(&chunk[16..24]) as u64
                     } else {
                         DEV_MEM_AREA.clear();
-                        return ;
+                        return;
                     }
                 };
-                println!("dev mem 0x{:08x} 0x{:08x} 0x{:08x}", child_bus_addr,
-                         parent_bus_addr, addr_size);
+                println!(
+                    "dev mem 0x{:08x} 0x{:08x} 0x{:08x}",
+                    child_bus_addr, parent_bus_addr, addr_size
+                );
                 DEV_MEM_AREA.push((parent_bus_addr as usize, addr_size as usize));
             }
         }
     }
 }
 
-pub(crate) fn find_dtb<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>) {
-    let mut rsdps_area = Vec::new();
+fn parse_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os<D, V>, address: *const u8) {
+    unsafe {
+        if let Ok(fdt) = fdt::Fdt::from_ptr(address) {
+            let mut rsdps_area = Vec::new();
+            //println!("DTB model = {}", fdt.root().model());
+            get_dev_mem_region(&fdt);
+            let length = fdt.total_size();
+            let align = 8;
+            rsdps_area.extend(core::slice::from_raw_parts(address, length));
+            rsdps_area.resize(((rsdps_area.len() + (align - 1)) / align) * align, 0u8);
+            RSDPS_AREA_SIZE = rsdps_area.len();
+            RSDPS_AREA_BASE = os.alloc_zeroed_page_aligned(RSDPS_AREA_SIZE);
+            slice::from_raw_parts_mut(RSDPS_AREA_BASE, RSDPS_AREA_SIZE)
+                .copy_from_slice(&rsdps_area);
+        } else {
+            println!("Failed to parse DTB");
+        }
+    }
+}
+
+fn find_smbios3_system(address: *const u8) -> Result<dmidecode::System<'static>> {
+    unsafe {
+        let smb = core::slice::from_raw_parts(address, 24);
+        if let Ok(smbios) = dmidecode::EntryPoint::search(smb) {
+            let smb_structure_data = core::slice::from_raw_parts(
+                smbios.smbios_address() as *const u8,
+                smbios.smbios_len() as usize,
+            );
+            for structure in smbios.structures(smb_structure_data) {
+                if let Ok(sval) = structure {
+                    //println!("SMBIOS: {:#?}", sval);
+                    if let dmidecode::Structure::System(buf) = sval {
+                        return Ok(buf);
+                    }
+                }
+            }
+        }
+    }
+    Err(Error::NotFound)
+}
+
+pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os<D, V>) {
     let cfg_tables = std::system_table().config_tables();
     for cfg_table in cfg_tables.iter() {
         if cfg_table.VendorGuid.kind() == GuidKind::DeviceTree {
-            let addr = cfg_table.VendorTable as u64;
+            let addr = cfg_table.VendorTable;
             println!("DTB: {:X}", addr);
-            unsafe {
-                if let Ok(fdt) = fdt::Fdt::from_ptr(cfg_table.VendorTable as *const u8) {
-                    //println!("DTB model = {}", fdt.root().model());
-                    get_dev_mem_region(&fdt);
-                    let length = fdt.total_size();
-                    let address = cfg_table.VendorTable;
-                    let align = 8;
-                    rsdps_area.extend(unsafe { core::slice::from_raw_parts(address as *const u8, length) });
-                    rsdps_area.resize(((rsdps_area.len() + (align - 1)) / align) * align, 0u8);
-                    RSDPS_AREA_SIZE = rsdps_area.len();
-                    RSDPS_AREA_BASE = os.alloc_zeroed_page_aligned(RSDPS_AREA_SIZE);
-                    slice::from_raw_parts_mut(
-                        RSDPS_AREA_BASE,
-                        RSDPS_AREA_SIZE
-                    ).copy_from_slice(&rsdps_area);
-                    return ;
-                } else {
-                    println!("Failed to parser DTB");
+            parse_dtb(os, addr as *const u8);
+            return;
+        }
+    }
+    for cfg_table in cfg_tables.iter() {
+        if cfg_table.VendorGuid.kind() == GuidKind::Smbios3 {
+            let addr = cfg_table.VendorTable;
+            if let Ok(sys) = find_smbios3_system(addr as *const u8) {
+                let get_dtb_addr = match (sys.manufacturer, sys.version) {
+                    ("QEMU", version) if version.starts_with("virt") => Some(0x4000_0000 as usize),
+                    _ => None,
+                };
+                if let Some(dtb_addr) = get_dtb_addr {
+                    println!("Fallback DTB: {:X}", dtb_addr);
+                    parse_dtb(os, dtb_addr as *const u8);
                 }
-            }
+            };
+            return;
         }
     }
     println!("Failed to find DTB");
