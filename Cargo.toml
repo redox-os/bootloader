@@ -31,8 +31,9 @@ redox_uefi = { git = "https://gitlab.redox-os.org/redox-os/uefi.git" }
 redox_uefi_std = { git = "https://gitlab.redox-os.org/redox-os/uefi.git" }
 
 [target."aarch64-unknown-uefi".dependencies]
-fdt = "0.1.5"
 byteorder = { version = "1", default-features = false }
+dmidecode = "0.8.0"
+fdt = "0.1.5"
 
 [target."x86_64-unknown-uefi".dependencies]
 x86 = "0.52.0"
@@ -41,3 +42,4 @@ x86 = "0.52.0"
 default = []
 live = []
 serial_debug = []
+
