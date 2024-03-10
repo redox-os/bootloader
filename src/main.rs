@@ -302,7 +302,7 @@ fn redoxfs<
 #[derive(PartialEq)]
 enum Filetype {
     Elf,
-    Other,
+    Initfs,
 }
 fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, fs: &mut redoxfs::FileSystem<D>, dirname: &str, filename: &str, filetype: Filetype) -> &'static mut [u8] {
     fs.tx(|tx| {
@@ -336,6 +336,11 @@ fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, 
         if filetype == Filetype::Elf {
             let magic = &slice[..4];
             if magic != b"\x7FELF" {
+                panic!("{} has invalid magic number {:#X?}", filename, magic);
+            }
+        } else if filetype == Filetype::Initfs {
+            let magic = &slice[..8];
+            if magic != b"RedoxFtw" {
                 panic!("{} has invalid magic number {:#X?}", filename, magic);
             }
         }
@@ -450,25 +455,24 @@ fn main<
         (kernel, kernel_entry)
     };
 
-    let (bootstrap_size, bootstrap_base, bootstrap_entry, initfs_offset, initfs_len) = {
-        let bootstrap_slice = load_to_memory(os, &mut fs, "boot", "bootstrap", Filetype::Elf);
-        let bootstrap_len = bootstrap_slice.len().next_multiple_of(4096);
+    let (bootstrap_size, bootstrap_base, bootstrap_entry, initfs_len) = {
+        let initfs_slice = load_to_memory(os, &mut fs, "boot", "initfs", Filetype::Initfs);
+        let initfs_len = initfs_slice.len().next_multiple_of(4096);
+
+        let bootstrap_slice = &initfs_slice[4096..];
         let (bootstrap_entry, bootstrap_64bit) = elf_entry(bootstrap_slice);
         unsafe { assert_eq!(KERNEL_64BIT, bootstrap_64bit); }
 
-        let initfs_slice = load_to_memory(os, &mut fs, "boot", "initfs", Filetype::Other);
-        let initfs_len = initfs_slice.len().next_multiple_of(4096);
 
         let memory = unsafe {
-            let total_size = initfs_len + bootstrap_len;
+            let total_size = initfs_len;
             let ptr = os.alloc_zeroed_page_aligned(total_size);
             assert!(!ptr.is_null(), "failed to allocate bootstrap+initfs memory");
             core::slice::from_raw_parts_mut(ptr, total_size)
         };
-        memory[..bootstrap_slice.len()].copy_from_slice(bootstrap_slice);
-        memory[bootstrap_len..bootstrap_len + initfs_slice.len()].copy_from_slice(initfs_slice);
+        memory[..initfs_slice.len()].copy_from_slice(initfs_slice);
 
-        (memory.len() as u64, memory.as_mut_ptr() as u64, bootstrap_entry, bootstrap_len, initfs_len)
+        (memory.len() as u64, memory.as_mut_ptr() as u64, bootstrap_entry, initfs_len)
     };
 
     let page_phys = unsafe {
@@ -543,7 +547,6 @@ fn main<
                 }
             }
         }
-        writeln!(w, "INITFS_OFFSET={:016x}", initfs_offset).unwrap();
         writeln!(w, "INITFS_LENGTH={:016x}", initfs_len).unwrap();
 
         env_size = w.i;
