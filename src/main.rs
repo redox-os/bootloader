@@ -459,9 +459,7 @@ fn main<
         let initfs_slice = load_to_memory(os, &mut fs, "boot", "initfs", Filetype::Initfs);
         let initfs_len = initfs_slice.len().next_multiple_of(4096);
 
-        let bootstrap_slice = &initfs_slice[4096..];
-        let (bootstrap_entry, bootstrap_64bit) = elf_entry(bootstrap_slice);
-        unsafe { assert_eq!(KERNEL_64BIT, bootstrap_64bit); }
+        let bootstrap_entry = u64::from_le_bytes(initfs_slice[0x1a..0x22].try_into().unwrap());
 
 
         let memory = unsafe {
