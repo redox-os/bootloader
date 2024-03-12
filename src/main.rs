@@ -455,22 +455,19 @@ fn main<
         (kernel, kernel_entry)
     };
 
-    let (bootstrap_size, bootstrap_base, bootstrap_entry, initfs_len) = {
+    let (bootstrap_size, bootstrap_base, bootstrap_entry) = {
         let initfs_slice = load_to_memory(os, &mut fs, "boot", "initfs", Filetype::Initfs);
-        let initfs_len = initfs_slice.len().next_multiple_of(4096);
-
         let bootstrap_entry = u64::from_le_bytes(initfs_slice[0x1a..0x22].try_into().unwrap());
 
-
         let memory = unsafe {
-            let total_size = initfs_len;
+            let total_size = initfs_slice.len().next_multiple_of(4096);
             let ptr = os.alloc_zeroed_page_aligned(total_size);
             assert!(!ptr.is_null(), "failed to allocate bootstrap+initfs memory");
             core::slice::from_raw_parts_mut(ptr, total_size)
         };
         memory[..initfs_slice.len()].copy_from_slice(initfs_slice);
 
-        (memory.len() as u64, memory.as_mut_ptr() as u64, bootstrap_entry, initfs_len)
+        (memory.len() as u64, memory.as_mut_ptr() as u64, bootstrap_entry)
     };
 
     let page_phys = unsafe {
@@ -545,7 +542,6 @@ fn main<
                 }
             }
         }
-        writeln!(w, "INITFS_LENGTH={:016x}", initfs_len).unwrap();
 
         env_size = w.i;
     }
