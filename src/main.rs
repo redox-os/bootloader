@@ -99,7 +99,6 @@ pub struct KernelArgs {
 
     bootstrap_base: u64,
     bootstrap_size: u64,
-    bootstrap_entry: u64,
 }
 
 fn select_mode<
@@ -455,9 +454,8 @@ fn main<
         (kernel, kernel_entry)
     };
 
-    let (bootstrap_size, bootstrap_base, bootstrap_entry) = {
+    let (bootstrap_size, bootstrap_base) = {
         let initfs_slice = load_to_memory(os, &mut fs, "boot", "initfs", Filetype::Initfs);
-        let bootstrap_entry = u64::from_le_bytes(initfs_slice[0x1a..0x22].try_into().unwrap());
 
         let memory = unsafe {
             let total_size = initfs_slice.len().next_multiple_of(4096);
@@ -467,7 +465,7 @@ fn main<
         };
         memory[..initfs_slice.len()].copy_from_slice(initfs_slice);
 
-        (memory.len() as u64, memory.as_mut_ptr() as u64, bootstrap_entry)
+        (memory.len() as u64, memory.as_mut_ptr() as u64)
     };
 
     let page_phys = unsafe {
@@ -566,7 +564,6 @@ fn main<
             },
             bootstrap_base,
             bootstrap_size,
-            bootstrap_entry,
         }
     )
 }
