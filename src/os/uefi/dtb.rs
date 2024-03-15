@@ -7,8 +7,8 @@ use uefi::status::{Error, Result};
 
 use crate::{Disk, Os, OsVideoMode};
 
-pub(crate) static mut RSDPS_AREA_BASE: *mut u8 = 0 as *mut u8;
-pub(crate) static mut RSDPS_AREA_SIZE: usize = 0;
+pub(crate) static mut RSDP_AREA_BASE: *mut u8 = 0 as *mut u8;
+pub(crate) static mut RSDP_AREA_SIZE: usize = 0;
 
 pub static mut DEV_MEM_AREA: Vec<(usize, usize)> = Vec::new();
 
@@ -81,9 +81,9 @@ fn parse_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os<D, V>, ad
             let align = 8;
             rsdps_area.extend(core::slice::from_raw_parts(address, length));
             rsdps_area.resize(((rsdps_area.len() + (align - 1)) / align) * align, 0u8);
-            RSDPS_AREA_SIZE = rsdps_area.len();
-            RSDPS_AREA_BASE = os.alloc_zeroed_page_aligned(RSDPS_AREA_SIZE);
-            slice::from_raw_parts_mut(RSDPS_AREA_BASE, RSDPS_AREA_SIZE)
+            RSDP_AREA_SIZE = rsdps_area.len();
+            RSDP_AREA_BASE = os.alloc_zeroed_page_aligned(RSDP_AREA_SIZE);
+            slice::from_raw_parts_mut(RSDP_AREA_BASE, RSDP_AREA_SIZE)
                 .copy_from_slice(&rsdps_area);
         } else {
             println!("Failed to parse DTB");

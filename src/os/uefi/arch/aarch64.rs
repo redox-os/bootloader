@@ -10,8 +10,8 @@ use crate::{
 use super::super::{
     OsEfi,
     dtb::{
-        RSDPS_AREA_BASE,
-        RSDPS_AREA_SIZE,
+        RSDP_AREA_BASE,
+        RSDP_AREA_SIZE,
         find_dtb,
     },
     memory_map::memory_map,
@@ -112,8 +112,8 @@ pub fn main() -> Result<()> {
     let (page_phys, func, mut args) = crate::main(&mut os);
 
     unsafe {
-        args.acpi_rsdps_base = RSDPS_AREA_BASE as u64;
-        args.acpi_rsdps_size = RSDPS_AREA_SIZE as u64;
+        args.acpi_rsdp_base = RSDP_AREA_BASE as u64;
+        args.acpi_rsdp_size = RSDP_AREA_SIZE as u64;
 
         kernel_entry(
             page_phys,
