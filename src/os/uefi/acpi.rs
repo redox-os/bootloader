@@ -3,8 +3,8 @@ use uefi::guid::GuidKind;
 
 use crate::{Disk, Os, OsVideoMode};
 
-pub(crate) static mut RSDPS_AREA_BASE: *mut u8 = 0 as *mut u8;
-pub(crate) static mut RSDPS_AREA_SIZE: usize = 0;
+pub(crate) static mut RSDP_AREA_BASE: *mut u8 = 0 as *mut u8;
+pub(crate) static mut RSDP_AREA_SIZE: usize = 0;
 
 struct Invalid;
 
@@ -60,40 +60,38 @@ pub(crate) fn find_acpi_table_pointers<
     D: Disk,
     V: Iterator<Item=OsVideoMode>
 >(os: &mut dyn Os<D, V>) {
-    let mut rsdps_area = Vec::new();
-
     let cfg_tables = std::system_table().config_tables();
-
-    for (address, v2) in cfg_tables.iter().find_map(|cfg_table| {
+    let mut acpi = None;
+    let mut acpi2 = None;
+    for cfg_table in cfg_tables.iter() {
         if cfg_table.VendorGuid.kind() == GuidKind::Acpi {
-            Some((cfg_table.VendorTable, false))
-        } else if cfg_table.VendorGuid.kind() == GuidKind::Acpi2 {
-            Some((cfg_table.VendorTable, true))
-        } else {
-            None
-        }
-    }) {
-        match validate_rsdp(address, v2) {
-            Ok(length) => {
-                let align = 8;
-
-                rsdps_area.extend(&u32::to_ne_bytes(length as u32));
-                rsdps_area.extend(unsafe { core::slice::from_raw_parts(address as *const u8, length) });
-                rsdps_area.resize(((rsdps_area.len() + (align - 1)) / align) * align, 0u8);
+            match validate_rsdp(cfg_table.VendorTable, false) {
+                Ok(length) => {
+                    acpi = Some(unsafe { core::slice::from_raw_parts(cfg_table.VendorTable as *const u8, length) });
+                }
+                Err(_) => log::warn!("Found RSDP that was not valid at {:p}", cfg_table.VendorTable as *const u8),
             }
-            Err(_) => log::warn!("Found RSDP that was not valid at {:p}", address as *const u8),
+        } else if cfg_table.VendorGuid.kind() == GuidKind::Acpi2 {
+            match validate_rsdp(cfg_table.VendorTable, true) {
+                Ok(length) => {
+                    acpi2 = Some(unsafe { core::slice::from_raw_parts(cfg_table.VendorTable as *const u8, length) });
+                }
+                Err(_) => log::warn!("Found RSDP that was not valid at {:p}", cfg_table.VendorTable as *const u8),
+            }
         }
     }
 
-    if ! rsdps_area.is_empty() {
+    let rsdp_area = acpi2.or(acpi).unwrap_or(&[]);
+
+    if !rsdp_area.is_empty() {
         unsafe {
             // Copy to page aligned area
-            RSDPS_AREA_SIZE = rsdps_area.len();
-            RSDPS_AREA_BASE = os.alloc_zeroed_page_aligned(RSDPS_AREA_SIZE);
+            RSDP_AREA_SIZE = rsdp_area.len();
+            RSDP_AREA_BASE = os.alloc_zeroed_page_aligned(RSDP_AREA_SIZE);
             slice::from_raw_parts_mut(
-                RSDPS_AREA_BASE,
-                RSDPS_AREA_SIZE
-            ).copy_from_slice(&rsdps_area);
+                RSDP_AREA_BASE,
+                RSDP_AREA_SIZE
+            ).copy_from_slice(&rsdp_area);
         }
     }
 }
