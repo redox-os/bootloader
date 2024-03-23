@@ -210,7 +210,7 @@ dependencies = [
  "fdt",
  "linked_list_allocator",
  "log",
- "redox_syscall 0.4.1",
+ "redox_syscall",
  "redox_uefi",
  "redox_uefi_std",
  "redoxfs",
@@ -223,15 +223,6 @@ name = "redox_simple_endian"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "175b27da3d5db1502bd20ae0917ba132d256a2b169f1686681304ebb86504eab"
-
-[[package]]
-name = "redox_syscall"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4722d768eff46b75989dd134e5c353f0d6296e5aaa3132e776cbdb56be7731aa"
-dependencies = [
- "bitflags 1.3.2",
-]
 
 [[package]]
 name = "redox_syscall"
@@ -277,7 +268,7 @@ dependencies = [
  "log",
  "redox-path",
  "redox_simple_endian",
- "redox_syscall 0.5.1",
+ "redox_syscall",
  "seahash",
  "uuid",
 ]
