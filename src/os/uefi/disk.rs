@@ -1,7 +1,7 @@
 use core::ops::{ControlFlow, Try};
 use core::slice;
-use redoxfs::{BLOCK_SIZE, Disk};
-use syscall::{EIO, Error, Result};
+use redoxfs::{BLOCK_SIZE, RECORD_SIZE, Disk};
+use syscall::{EIO, EINVAL, Error, Result};
 use std::proto::Protocol;
 use uefi::guid::{Guid, BLOCK_IO_GUID};
 use uefi::block_io::BlockIo as UefiBlockIo;
@@ -16,10 +16,10 @@ impl Protocol<UefiBlockIo> for DiskEfi {
     fn new(inner: &'static mut UefiBlockIo) -> Self {
         // Hack to get aligned buffer
         let block = unsafe {
-            let ptr = super::alloc_zeroed_page_aligned(BLOCK_SIZE as usize);
+            let ptr = super::alloc_zeroed_page_aligned(RECORD_SIZE as usize);
             slice::from_raw_parts_mut(
                 ptr,
-                BLOCK_SIZE as usize,
+                RECORD_SIZE as usize,
             )
         };
 
@@ -45,8 +45,12 @@ impl Disk for DiskEfi {
         let mut ptr = buffer.as_mut_ptr();
         if self.0.Media.IoAlign != 0 {
             if (ptr as usize) % (self.0.Media.IoAlign as usize) != 0 {
-                if buffer.len() == self.1.len() {
+                if buffer.len() <= self.1.len() {
                     ptr = self.1.as_mut_ptr();
+                } else {
+                    println!("DiskEfi::read_at 0x{:X} requires alignment, ptr = 0x{:p}, len = 0x{:x}",
+                             block, ptr, buffer.len());
+                    return Err(Error::new(EINVAL));
                 }
             }
         }
@@ -58,7 +62,8 @@ impl Disk for DiskEfi {
             ControlFlow::Continue(_) => {
                 // Copy to original buffer if using aligned buffer
                 if ptr != buffer.as_mut_ptr() {
-                    buffer.copy_from_slice(&self.1);
+                    let (left, _) = self.1.split_at(buffer.len());
+                    buffer.copy_from_slice(left);
                 }
                 Ok(buffer.len())
             },
