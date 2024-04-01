@@ -26,9 +26,9 @@ dependencies = [
 
 [[package]]
 name = "autocfg"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
+checksum = "f1fdabc7756949593fe60f30ec81974b613357de856987752631dea1e3394c80"
 
 [[package]]
 name = "base64ct"
@@ -257,9 +257,9 @@ dependencies = [
 
 [[package]]
 name = "redoxfs"
-version = "0.6.2"
+version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4c189a8eccec864d5b193e3513388b4ae9302193ef5612729a31696bf519a9c"
+checksum = "53fd4a89861ecb0c40d804dd1b686a86896a7ba162ef5cb484ed68e5c5b0837d"
 dependencies = [
  "aes",
  "argon2",
