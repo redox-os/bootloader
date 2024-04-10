@@ -304,9 +304,10 @@ impl Os<
     }
 
     fn set_text_position(&self, x: usize, y: usize) {
-        status_to_result(
+        // Ignore error because Tow-Boot appears to not implement this
+        let _ = status_to_result(
             (self.st.ConsoleOut.SetCursorPosition)(self.st.ConsoleOut, x, y)
-        ).unwrap();
+        );
     }
 
     fn set_text_highlight(&self, highlight: bool) {
