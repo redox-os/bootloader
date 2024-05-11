@@ -26,9 +26,9 @@ dependencies = [
 
 [[package]]
 name = "autocfg"
-version = "1.2.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1fdabc7756949593fe60f30ec81974b613357de856987752631dea1e3394c80"
+checksum = "0c4b4d0bd25bd0b74681c0ad21497610ce1b7c91b1022cd21c80c6fbdd9476b0"
 
 [[package]]
 name = "base64ct"
@@ -125,9 +125,9 @@ dependencies = [
 
 [[package]]
 name = "dmidecode"
-version = "0.8.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d260936219e50cfce3ef3a6b6e4438960c7d51fc8a940096e223eb8afb4c16d"
+checksum = "fa86f9a41c4ef2a1fd36bba5ae428e653ab7051de8a000feb5210c241bad7f50"
 dependencies = [
  "bitflags 1.3.2",
 ]
@@ -150,9 +150,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.153"
+version = "0.2.154"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
+checksum = "ae743338b92ff9146ce83992f766a31066a91a8c84a45e0e9f21e7cf6de6d346"
 
 [[package]]
 name = "linked_list_allocator"
@@ -165,9 +165,9 @@ dependencies = [
 
 [[package]]
 name = "lock_api"
-version = "0.4.11"
+version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c168f8615b12bc01f9c17e2eb0cc07dcae1940121185446edc3744920e8ef45"
+checksum = "07af8b9cdd281b7915f413fa73f29ebd5d55d0d3f0155584dade1ff18cea1b17"
 dependencies = [
  "autocfg",
  "scopeguard",
@@ -236,12 +236,12 @@ dependencies = [
 [[package]]
 name = "redox_uefi"
 version = "0.1.11"
-source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#9dd75ea88ff345ff8261bd07317a67f92638dbfb"
+source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#b8f1d5e3a33a56533b3490af6a2ad6c5e636f7a9"
 
 [[package]]
 name = "redox_uefi_alloc"
 version = "0.1.11"
-source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#9dd75ea88ff345ff8261bd07317a67f92638dbfb"
+source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#b8f1d5e3a33a56533b3490af6a2ad6c5e636f7a9"
 dependencies = [
  "redox_uefi",
 ]
@@ -249,7 +249,7 @@ dependencies = [
 [[package]]
 name = "redox_uefi_std"
 version = "0.1.11"
-source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#9dd75ea88ff345ff8261bd07317a67f92638dbfb"
+source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#b8f1d5e3a33a56533b3490af6a2ad6c5e636f7a9"
 dependencies = [
  "redox_uefi",
  "redox_uefi_alloc",
