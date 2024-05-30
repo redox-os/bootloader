@@ -2,7 +2,7 @@ use byteorder::ByteOrder;
 use byteorder::BE;
 use fdt;
 use std::{slice, vec::Vec};
-use uefi::guid::GuidKind;
+use uefi::guid;
 use uefi::status::{Error, Result};
 
 use crate::{Disk, Os, OsVideoMode};
@@ -115,7 +115,7 @@ fn find_smbios3_system(address: *const u8) -> Result<dmidecode::System<'static>>
 pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os<D, V>) {
     let cfg_tables = std::system_table().config_tables();
     for cfg_table in cfg_tables.iter() {
-        if cfg_table.VendorGuid.kind() == GuidKind::DeviceTree {
+        if cfg_table.VendorGuid == guid::DEVICE_TREE_GUID {
             let addr = cfg_table.VendorTable;
             println!("DTB: {:X}", addr);
             parse_dtb(os, addr as *const u8);
@@ -123,7 +123,7 @@ pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os
         }
     }
     for cfg_table in cfg_tables.iter() {
-        if cfg_table.VendorGuid.kind() == GuidKind::Smbios3 {
+        if cfg_table.VendorGuid == guid::SMBIOS3_TABLE_GUID {
             let addr = cfg_table.VendorTable;
             if let Ok(sys) = find_smbios3_system(addr as *const u8) {
                 let get_dtb_addr = match (sys.manufacturer, sys.version) {
