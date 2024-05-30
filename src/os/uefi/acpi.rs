@@ -1,5 +1,5 @@
 use std::{slice, vec::Vec};
-use uefi::guid::GuidKind;
+use uefi::guid;
 
 use crate::{Disk, Os, OsVideoMode};
 
@@ -64,14 +64,14 @@ pub(crate) fn find_acpi_table_pointers<
     let mut acpi = None;
     let mut acpi2 = None;
     for cfg_table in cfg_tables.iter() {
-        if cfg_table.VendorGuid.kind() == GuidKind::Acpi {
+        if cfg_table.VendorGuid == guid::ACPI_TABLE_GUID {
             match validate_rsdp(cfg_table.VendorTable, false) {
                 Ok(length) => {
                     acpi = Some(unsafe { core::slice::from_raw_parts(cfg_table.VendorTable as *const u8, length) });
                 }
                 Err(_) => log::warn!("Found RSDP that was not valid at {:p}", cfg_table.VendorTable as *const u8),
             }
-        } else if cfg_table.VendorGuid.kind() == GuidKind::Acpi2 {
+        } else if cfg_table.VendorGuid == guid::ACPI_20_TABLE_GUID {
             match validate_rsdp(cfg_table.VendorTable, true) {
                 Ok(length) => {
                     acpi2 = Some(unsafe { core::slice::from_raw_parts(cfg_table.VendorTable as *const u8, length) });
