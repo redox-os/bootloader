@@ -1,8 +1,8 @@
 use core::{mem, ptr};
-use redoxfs::{BLOCK_SIZE, Disk};
+use redoxfs::{Disk, BLOCK_SIZE};
 use syscall::error::{Error, Result, EIO};
 
-use super::{DISK_ADDRESS_PACKET_ADDR, DISK_BIOS_ADDR, ThunkData};
+use super::{ThunkData, DISK_ADDRESS_PACKET_ADDR, DISK_BIOS_ADDR};
 
 const SECTOR_SIZE: u64 = 512;
 const BLOCKS_PER_SECTOR: u64 = BLOCK_SIZE / SECTOR_SIZE;
@@ -71,9 +71,7 @@ impl DiskBios {
                 let ah = ({ data.eax } >> 8) & 0xFF;
                 assert_eq!(ah, 0);
 
-                let c =
-                    (data.ecx >> 8) & 0xFF |
-                    ((data.ecx >> 6) & 0x3) << 8;
+                let c = (data.ecx >> 8) & 0xFF | ((data.ecx >> 6) & 0x3) << 8;
                 let h = ((data.edx >> 8) & 0xFF) + 1;
                 let s = data.ecx & 0x3F;
 
@@ -103,10 +101,13 @@ impl Disk for DiskBios {
             }
         }
 
-        for (i, chunk) in buffer.chunks_mut((MAX_BLOCKS * BLOCK_SIZE) as usize).enumerate() {
+        for (i, chunk) in buffer
+            .chunks_mut((MAX_BLOCKS * BLOCK_SIZE) as usize)
+            .enumerate()
+        {
             let dap = DiskAddressPacket::from_block(
                 block + i as u64 * MAX_BLOCKS,
-                chunk.len() as u64 / BLOCK_SIZE
+                chunk.len() as u64 / BLOCK_SIZE,
             );
 
             if let Some((c_max, h_max, s_max)) = self.chs_opt {
@@ -121,17 +122,11 @@ impl Disk for DiskBios {
                 assert!(c <= 1023, "invalid cylinder {}", c);
 
                 let mut data = ThunkData::new();
-                data.eax =
-                    0x0200 |
-                    (dap.sectors as u32);
+                data.eax = 0x0200 | (dap.sectors as u32);
                 data.ebx = dap.buffer as u32;
                 data.ecx =
-                    (s as u32) |
-                    (((c as u32) & 0xFF) << 8) |
-                    ((((c as u32) >> 8) & 0x3) << 6);
-                data.edx =
-                    (self.boot_disk as u32) |
-                    ((h as u32) << 8);
+                    (s as u32) | (((c as u32) & 0xFF) << 8) | ((((c as u32) >> 8) & 0x3) << 6);
+                data.edx = (self.boot_disk as u32) | ((h as u32) << 8);
                 data.es = dap.segment;
 
                 data.with(self.thunk13);

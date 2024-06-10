@@ -6,7 +6,7 @@
     target_os = "uefi",
     no_main,
     feature(control_flow_enum),
-    feature(try_trait_v2),
+    feature(try_trait_v2)
 )]
 
 #[cfg_attr(target_os = "none", macro_use)]
@@ -16,17 +16,11 @@ extern crate alloc;
 #[macro_use]
 extern crate uefi_std as std;
 
-use alloc::{
-    string::String,
-    vec::Vec,
-};
+use alloc::{string::String, vec::Vec};
 use core::{
     cmp,
     fmt::{self, Write},
-    mem,
-    ptr,
-    slice,
-    str,
+    mem, ptr, slice, str,
 };
 use redoxfs::Disk;
 
@@ -99,10 +93,10 @@ pub struct KernelArgs {
     bootstrap_size: u64,
 }
 
-fn select_mode<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, output_i: usize) -> Option<OsVideoMode> {
+fn select_mode<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+    output_i: usize,
+) -> Option<OsVideoMode> {
     let mut modes = Vec::new();
     for mode in os.video_modes(output_i) {
         let mut aspect_w = mode.width;
@@ -116,7 +110,10 @@ fn select_mode<
 
         modes.push((
             mode,
-            format!("{:>4}x{:<4} {:>3}:{:<3}", mode.width, mode.height, aspect_w, aspect_h)
+            format!(
+                "{:>4}x{:<4} {:>3}:{:<3}",
+                mode.width, mode.height, aspect_w, aspect_h
+            ),
         ));
     }
 
@@ -148,7 +145,7 @@ fn select_mode<
     let (off_x, off_y) = os.get_text_position();
     let rows = 12;
     let mut mode_opt = None;
-    while ! modes.is_empty() {
+    while !modes.is_empty() {
         let mut row = 0;
         let mut col = 0;
         for (mode, text) in modes.iter() {
@@ -179,7 +176,7 @@ fn select_mode<
                         selected = new.0.id;
                     }
                 }
-            },
+            }
             OsKey::Right => {
                 if let Some(mut mode_i) = modes.iter().position(|x| x.0.id == selected) {
                     mode_i += rows;
@@ -190,7 +187,7 @@ fn select_mode<
                         selected = new.0.id;
                     }
                 }
-            },
+            }
             OsKey::Up => {
                 if let Some(mut mode_i) = modes.iter().position(|x| x.0.id == selected) {
                     if mode_i % rows == 0 {
@@ -204,7 +201,7 @@ fn select_mode<
                         selected = new.0.id;
                     }
                 }
-            },
+            }
             OsKey::Down => {
                 if let Some(mut mode_i) = modes.iter().position(|x| x.0.id == selected) {
                     mode_i += 1;
@@ -218,7 +215,7 @@ fn select_mode<
                         selected = new.0.id;
                     }
                 }
-            },
+            }
             OsKey::Enter => {
                 if let Some(mode_i) = modes.iter().position(|x| x.0.id == selected) {
                     if let Some((mode, _text)) = modes.get(mode_i) {
@@ -226,7 +223,7 @@ fn select_mode<
                     }
                 }
                 break;
-            },
+            }
             _ => (),
         }
     }
@@ -238,10 +235,9 @@ fn select_mode<
     mode_opt
 }
 
-fn redoxfs<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>) -> (redoxfs::FileSystem<D>, Option<&'static [u8]>) {
+fn redoxfs<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+) -> (redoxfs::FileSystem<D>, Option<&'static [u8]>) {
     let attempts = 10;
     for attempt in 0..=attempts {
         let mut password_opt = None;
@@ -252,14 +248,16 @@ fn redoxfs<
 
             loop {
                 match os.get_key() {
-                    OsKey::Backspace | OsKey::Delete => if ! password.is_empty() {
-                        print!("\x08 \x08");
-                        password.pop();
-                    },
+                    OsKey::Backspace | OsKey::Delete => {
+                        if !password.is_empty() {
+                            print!("\x08 \x08");
+                            password.pop();
+                        }
+                    }
                     OsKey::Char(c) => {
                         print!("*");
                         password.push(c)
-                    },
+                    }
                     OsKey::Enter => break,
                     _ => (),
                 }
@@ -270,27 +268,32 @@ fn redoxfs<
                 print!("\x08 \x08");
             }
 
-            if ! password.is_empty() {
+            if !password.is_empty() {
                 password_opt = Some(password);
             }
         }
         match os.filesystem(password_opt.as_ref().map(|x| x.as_bytes())) {
-            Ok(fs) => return (fs, password_opt.map(|password| {
-                // Copy password to page aligned memory
-                let password_size = password.len();
-                let password_base = os.alloc_zeroed_page_aligned(password_size);
-                unsafe {
-                    ptr::copy(password.as_ptr(), password_base, password_size);
-                    slice::from_raw_parts(password_base, password_size)
-                }
-            })),
+            Ok(fs) => {
+                return (
+                    fs,
+                    password_opt.map(|password| {
+                        // Copy password to page aligned memory
+                        let password_size = password.len();
+                        let password_base = os.alloc_zeroed_page_aligned(password_size);
+                        unsafe {
+                            ptr::copy(password.as_ptr(), password_base, password_size);
+                            slice::from_raw_parts(password_base, password_size)
+                        }
+                    }),
+                )
+            }
             Err(err) => match err.errno {
                 // Incorrect password, try again
                 syscall::ENOKEY => (),
                 _ => {
                     panic!("Failed to open RedoxFS: {}", err);
                 }
-            }
+            },
         }
     }
     panic!("RedoxFS out of unlock attempts");
@@ -301,12 +304,20 @@ enum Filetype {
     Elf,
     Initfs,
 }
-fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, fs: &mut redoxfs::FileSystem<D>, dirname: &str, filename: &str, filetype: Filetype) -> &'static mut [u8] {
+fn load_to_memory<D: Disk>(
+    os: &mut dyn Os<D, impl Iterator<Item = OsVideoMode>>,
+    fs: &mut redoxfs::FileSystem<D>,
+    dirname: &str,
+    filename: &str,
+    filetype: Filetype,
+) -> &'static mut [u8] {
     fs.tx(|tx| {
-        let dir_node = tx.find_node(redoxfs::TreePtr::root(), dirname)
+        let dir_node = tx
+            .find_node(redoxfs::TreePtr::root(), dirname)
             .unwrap_or_else(|err| panic!("Failed to find {} directory: {}", dirname, err));
 
-        let node = tx.find_node(dir_node.ptr(), filename)
+        let node = tx
+            .find_node(dir_node.ptr(), filename)
             .unwrap_or_else(|err| panic!("Failed to find {} file: {}", filename, err));
 
         let size = node.data().size();
@@ -318,17 +329,27 @@ fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, 
             panic!("Failed to allocate memory for {}", filename);
         }
 
-        let slice = unsafe {
-            slice::from_raw_parts_mut(ptr, size as usize)
-        };
+        let slice = unsafe { slice::from_raw_parts_mut(ptr, size as usize) };
 
         let mut i = 0;
         for chunk in slice.chunks_mut(MIBI) {
-            print!("\r{}: {}/{} MiB", filename, i / MIBI as u64, size / MIBI as u64);
-            i += tx.read_node_inner(&node, i, chunk)
-                .unwrap_or_else(|err| panic!("Failed to read `{}` file: {}", filename, err)) as u64;
+            print!(
+                "\r{}: {}/{} MiB",
+                filename,
+                i / MIBI as u64,
+                size / MIBI as u64
+            );
+            i += tx
+                .read_node_inner(&node, i, chunk)
+                .unwrap_or_else(|err| panic!("Failed to read `{}` file: {}", filename, err))
+                as u64;
         }
-        println!("\r{}: {}/{} MiB", filename, i / MIBI as u64, size / MIBI as u64);
+        println!(
+            "\r{}: {}/{} MiB",
+            filename,
+            i / MIBI as u64,
+            size / MIBI as u64
+        );
 
         if filetype == Filetype::Elf {
             let magic = &slice[..4];
@@ -343,29 +364,43 @@ fn load_to_memory<D: Disk>(os: &mut dyn Os<D, impl Iterator<Item=OsVideoMode>>, 
         }
 
         Ok(slice)
-    }).unwrap_or_else(|err| panic!("RedoxFS transaction failed while loading `{}`: {}", filename, err))
+    })
+    .unwrap_or_else(|err| {
+        panic!(
+            "RedoxFS transaction failed while loading `{}`: {}",
+            filename, err
+        )
+    })
 }
 
 fn elf_entry(data: &[u8]) -> (u64, bool) {
     match (data[4], data[5]) {
         // 32-bit, little endian
         (1, 1) => (
-            u32::from_le_bytes(<[u8; 4]>::try_from(&data[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64,
+            u32::from_le_bytes(
+                <[u8; 4]>::try_from(&data[0x18..0x18 + 4]).expect("conversion cannot fail"),
+            ) as u64,
             false,
         ),
         // 32-bit, big endian
         (1, 2) => (
-            u32::from_be_bytes(<[u8; 4]>::try_from(&data[0x18..0x18 + 4]).expect("conversion cannot fail")) as u64,
+            u32::from_be_bytes(
+                <[u8; 4]>::try_from(&data[0x18..0x18 + 4]).expect("conversion cannot fail"),
+            ) as u64,
             false,
         ),
         // 64-bit, little endian
         (2, 1) => (
-            u64::from_le_bytes(<[u8; 8]>::try_from(&data[0x18..0x18 + 8]).expect("conversion cannot fail")),
+            u64::from_le_bytes(
+                <[u8; 8]>::try_from(&data[0x18..0x18 + 8]).expect("conversion cannot fail"),
+            ),
             true,
         ),
         // 64-bit, big endian
         (2, 2) => (
-            u64::from_be_bytes(<[u8; 8]>::try_from(&data[0x18..0x18 + 8]).expect("conversion cannot fail")),
+            u64::from_be_bytes(
+                <[u8; 8]>::try_from(&data[0x18..0x18 + 8]).expect("conversion cannot fail"),
+            ),
             true,
         ),
         (ei_class, ei_data) => {
@@ -374,11 +409,14 @@ fn elf_entry(data: &[u8]) -> (u64, bool) {
     }
 }
 
-fn main<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>) -> (usize, u64, KernelArgs) {
-    println!("Redox OS Bootloader {} on {}", env!("CARGO_PKG_VERSION"), os.name());
+fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+) -> (usize, u64, KernelArgs) {
+    println!(
+        "Redox OS Bootloader {} on {}",
+        env!("CARGO_PKG_VERSION"),
+        os.name()
+    );
 
     let (mut fs, password_opt) = redoxfs(os);
 
@@ -417,15 +455,14 @@ fn main<
             panic!("Failed to allocate memory for live");
         }
 
-        let live = unsafe {
-            slice::from_raw_parts_mut(ptr, size as usize)
-        };
+        let live = unsafe { slice::from_raw_parts_mut(ptr, size as usize) };
 
         let mut i = 0;
         for chunk in live.chunks_mut(MIBI) {
             print!("\rlive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
             i += unsafe {
-                fs.disk.read_at(fs.block + i / redoxfs::BLOCK_SIZE, chunk)
+                fs.disk
+                    .read_at(fs.block + i / redoxfs::BLOCK_SIZE, chunk)
                     .expect("Failed to read live disk") as u64
             };
         }
@@ -433,10 +470,7 @@ fn main<
 
         println!("Switching to live disk");
         unsafe {
-            LIVE_OPT = Some((
-                fs.block,
-                slice::from_raw_parts_mut(ptr, size as usize)
-            ));
+            LIVE_OPT = Some((fs.block, slice::from_raw_parts_mut(ptr, size as usize)));
         }
 
         Some(live)
@@ -448,7 +482,9 @@ fn main<
     let (kernel, kernel_entry) = {
         let kernel = load_to_memory(os, &mut fs, "boot", "kernel", Filetype::Elf);
         let (kernel_entry, kernel_64bit) = elf_entry(kernel);
-        unsafe { KERNEL_64BIT = kernel_64bit; }
+        unsafe {
+            KERNEL_64BIT = kernel_64bit;
+        }
         (kernel, kernel_entry)
     };
 
@@ -466,9 +502,8 @@ fn main<
         (memory.len() as u64, memory.as_mut_ptr() as u64)
     };
 
-    let page_phys = unsafe {
-        paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64)
-    }.expect("Failed to set up paging");
+    let page_phys = unsafe { paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64) }
+        .expect("Failed to set up paging");
     //TODO: properly reserve page table allocations so kernel does not re-use them
 
     let mut env_size = 4 * KIBI;
@@ -479,9 +514,7 @@ fn main<
 
     {
         let mut w = SliceWriter {
-            slice: unsafe {
-                slice::from_raw_parts_mut(env_base, env_size)
-            },
+            slice: unsafe { slice::from_raw_parts_mut(env_base, env_size) },
             i: 0,
         };
 
@@ -502,7 +535,12 @@ fn main<
         }
         writeln!(w).unwrap();
         if let Some(password) = password_opt {
-            writeln!(w, "REDOXFS_PASSWORD_ADDR={:016x}", password.as_ptr() as usize).unwrap();
+            writeln!(
+                w,
+                "REDOXFS_PASSWORD_ADDR={:016x}",
+                password.as_ptr() as usize
+            )
+            .unwrap();
             writeln!(w, "REDOXFS_PASSWORD_SIZE={:016x}", password.len()).unwrap();
         }
 
@@ -517,9 +555,10 @@ fn main<
                             os,
                             page_phys,
                             mode.base,
-                            (mode.stride * mode.height * 4) as u64
+                            (mode.stride * mode.height * 4) as u64,
                         )
-                    }.expect("Failed to map framebuffer");
+                    }
+                    .expect("Failed to map framebuffer");
 
                     writeln!(w, "FRAMEBUFFER_ADDR={:016x}", mode.base).unwrap();
                     writeln!(w, "FRAMEBUFFER_VIRT={:016x}", virt).unwrap();
@@ -527,14 +566,12 @@ fn main<
                     writeln!(w, "FRAMEBUFFER_HEIGHT={:016x}", mode.height).unwrap();
                     writeln!(w, "FRAMEBUFFER_STRIDE={:016x}", mode.stride).unwrap();
                 } else {
-                    writeln!(w,
+                    writeln!(
+                        w,
                         "FRAMEBUFFER{}={:#x},{},{},{}",
-                        output_i,
-                        mode.base,
-                        mode.width,
-                        mode.height,
-                        mode.stride,
-                    ).unwrap();
+                        output_i, mode.base, mode.width, mode.height, mode.stride,
+                    )
+                    .unwrap();
                 }
             }
         }
@@ -554,14 +591,10 @@ fn main<
             env_size: env_size as u64,
             acpi_rsdp_base: 0,
             acpi_rsdp_size: 0,
-            areas_base: unsafe {
-                AREAS.as_ptr() as u64
-            },
-            areas_size: unsafe {
-                (AREAS.len() * mem::size_of::<OsMemoryEntry>()) as u64
-            },
+            areas_base: unsafe { AREAS.as_ptr() as u64 },
+            areas_size: unsafe { (AREAS.len() * mem::size_of::<OsMemoryEntry>()) as u64 },
             bootstrap_base,
             bootstrap_size,
-        }
+        },
     )
 }

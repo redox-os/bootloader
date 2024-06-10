@@ -1,9 +1,12 @@
-use core::{ops::{ControlFlow, Try}, ptr};
+use core::{
+    ops::{ControlFlow, Try},
+    ptr,
+};
 use log::error;
 use std::proto::Protocol;
 
-use crate::os::OsVideoMode;
 use crate::os::uefi::display::Output;
+use crate::os::OsVideoMode;
 
 pub struct VideoModeIter {
     output_opt: Option<Output>,
@@ -12,10 +15,7 @@ pub struct VideoModeIter {
 
 impl VideoModeIter {
     pub fn new(output_opt: Option<Output>) -> Self {
-        Self {
-            output_opt,
-            i: 0,
-        }
+        Self { output_opt, i: 0 }
     }
 }
 

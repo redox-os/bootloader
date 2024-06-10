@@ -55,10 +55,7 @@ pub struct OsVideoMode {
     pub base: u64,
 }
 
-pub trait Os<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
-> {
+pub trait Os<D: Disk, V: Iterator<Item = OsVideoMode>> {
     fn name(&self) -> &str;
 
     fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8;

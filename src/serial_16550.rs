@@ -1,9 +1,10 @@
 use bitflags::bitflags;
 use core::convert::TryInto;
+use core::fmt;
 use core::ptr::{addr_of, addr_of_mut};
-use syscall::io::{Io, Mmio, ReadOnly};
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 use syscall::io::Pio;
+use syscall::io::{Io, Mmio, ReadOnly};
 
 bitflags! {
     /// Interrupt enable flags
@@ -127,5 +128,15 @@ where
                 }
             }
         }
+    }
+}
+
+impl<T: Io> fmt::Write for SerialPort<T>
+where
+    T::Value: From<u8> + TryInto<u8>,
+{
+    fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
+        self.write(s.as_bytes());
+        Ok(())
     }
 }

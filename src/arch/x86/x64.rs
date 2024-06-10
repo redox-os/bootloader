@@ -8,16 +8,12 @@ const PAGE_ENTRIES: usize = 512;
 const PAGE_SIZE: usize = 4096;
 pub(crate) const PHYS_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
-unsafe fn paging_allocate<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>) -> Option<&'static mut [u64]> {
+unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+) -> Option<&'static mut [u64]> {
     let ptr = os.alloc_zeroed_page_aligned(PAGE_SIZE);
-    if ! ptr.is_null() {
-        Some(slice::from_raw_parts_mut(
-            ptr as *mut u64,
-            PAGE_ENTRIES
-        ))
+    if !ptr.is_null() {
+        Some(slice::from_raw_parts_mut(ptr as *mut u64, PAGE_ENTRIES))
     } else {
         None
     }
@@ -27,10 +23,11 @@ const PRESENT: u64 = 1;
 const WRITABLE: u64 = 1 << 1;
 const LARGE: u64 = 1 << 7;
 
-pub unsafe fn paging_create<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, kernel_phys: u64, kernel_size: u64) -> Option<usize> {
+pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+    kernel_phys: u64,
+    kernel_size: u64,
+) -> Option<usize> {
     // Create PML4
     let pml4 = paging_allocate(os)?;
 
@@ -47,9 +44,7 @@ pub unsafe fn paging_create<
             let pd = paging_allocate(os)?;
             pdp[pdp_i] = pd.as_ptr() as u64 | WRITABLE | PRESENT;
             for pd_i in 0..pd.len() {
-                let addr =
-                    pdp_i as u64 * 0x4000_0000 +
-                    pd_i as u64 * 0x20_0000;
+                let addr = pdp_i as u64 * 0x4000_0000 + pd_i as u64 * 0x20_0000;
                 pd[pd_i] = addr | LARGE | WRITABLE | PRESENT;
             }
         }
@@ -74,7 +69,7 @@ pub unsafe fn paging_create<
         let mut kernel_mapped = 0;
 
         let mut pd_idx = 0;
-        while kernel_mapped < kernel_size && pd_idx < pd.len(){
+        while kernel_mapped < kernel_size && pd_idx < pd.len() {
             let pt = paging_allocate(os)?;
             pd[pd_idx] = pt.as_ptr() as u64 | WRITABLE | PRESENT;
             pd_idx += 1;
@@ -93,10 +88,12 @@ pub unsafe fn paging_create<
     Some(pml4.as_ptr() as usize)
 }
 
-pub unsafe fn paging_framebuffer<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<u64> {
+pub unsafe fn paging_framebuffer<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+    page_phys: usize,
+    framebuffer_phys: u64,
+    framebuffer_size: u64,
+) -> Option<u64> {
     //TODO: smarter test for framebuffer already mapped
     if framebuffer_phys + framebuffer_size <= 0x2_0000_0000 {
         return Some(framebuffer_phys + PHYS_OFFSET);
@@ -107,10 +104,7 @@ pub unsafe fn paging_framebuffer<
     let mut pd_i = ((framebuffer_phys % 0x4000_0000) / 0x20_0000) as usize;
     assert_eq!(framebuffer_phys % 0x20_0000, 0);
 
-    let pml4 = slice::from_raw_parts_mut(
-        page_phys as *mut u64,
-        PAGE_ENTRIES
-    );
+    let pml4 = slice::from_raw_parts_mut(page_phys as *mut u64, PAGE_ENTRIES);
 
     // Create PDP for framebuffer mapping
     let pdp = if pml4[pml4_i] == 0 {
@@ -120,7 +114,7 @@ pub unsafe fn paging_framebuffer<
     } else {
         slice::from_raw_parts_mut(
             (pml4[pml4_i] & ENTRY_ADDRESS_MASK) as *mut u64,
-            PAGE_ENTRIES
+            PAGE_ENTRIES,
         )
     };
 

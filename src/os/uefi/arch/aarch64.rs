@@ -1,20 +1,12 @@
 use core::{arch::asm, mem, ptr};
 use uefi::status::Result;
 
-use crate::{
-    KernelArgs,
-    arch::PHYS_OFFSET,
-    logger::LOGGER,
-};
+use crate::{arch::PHYS_OFFSET, logger::LOGGER, KernelArgs};
 
 use super::super::{
-    OsEfi,
-    dtb::{
-        RSDP_AREA_BASE,
-        RSDP_AREA_SIZE,
-        find_dtb,
-    },
+    dtb::{find_dtb, RSDP_AREA_BASE, RSDP_AREA_SIZE},
     memory_map::memory_map,
+    OsEfi,
 };
 
 unsafe extern "C" fn kernel_entry(

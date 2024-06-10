@@ -1,32 +1,29 @@
 use core::slice;
 use redoxfs::Disk;
 
-use crate::os::{Os, OsVideoMode, dtb::is_in_dev_mem_region};
+use crate::os::{dtb::is_in_dev_mem_region, Os, OsVideoMode};
 
 const ENTRY_ADDRESS_MASK: u64 = 0x000F_FFFF_FFFF_F000;
 const PAGE_ENTRIES: usize = 512;
 const PAGE_SIZE: usize = 4096;
 pub(crate) const PHYS_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
-unsafe fn paging_allocate<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>) -> Option<&'static mut [u64]> {
+unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+) -> Option<&'static mut [u64]> {
     let ptr = os.alloc_zeroed_page_aligned(PAGE_SIZE);
-    if ! ptr.is_null() {
-        Some(slice::from_raw_parts_mut(
-            ptr as *mut u64,
-            PAGE_ENTRIES
-        ))
+    if !ptr.is_null() {
+        Some(slice::from_raw_parts_mut(ptr as *mut u64, PAGE_ENTRIES))
     } else {
         None
     }
 }
 
-pub unsafe fn paging_create<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, kernel_phys: u64, kernel_size: u64) -> Option<usize> {
+pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+    kernel_phys: u64,
+    kernel_size: u64,
+) -> Option<usize> {
     // Create L0
     let l0 = paging_allocate(os)?;
 
@@ -44,9 +41,7 @@ pub unsafe fn paging_create<
             let l2 = paging_allocate(os)?;
             l1[l1_i] = l2.as_ptr() as u64 | 1 << 10 | 1 << 1 | 1;
             for l2_i in 0..l2.len() {
-                let addr =
-                    l1_i as u64 * 0x4000_0000 +
-                    l2_i as u64 * 0x20_0000;
+                let addr = l1_i as u64 * 0x4000_0000 + l2_i as u64 * 0x20_0000;
                 l2[l2_i] = addr | 1 << 10 | 1;
                 if is_in_dev_mem_region(cur_addr) {
                     l2[l2_i] |= (2 << 2);
@@ -72,7 +67,7 @@ pub unsafe fn paging_create<
             l1_i += 1;
 
             let mut l2_i = 0;
-            while kernel_mapped < kernel_size && l2_i < l2.len(){
+            while kernel_mapped < kernel_size && l2_i < l2.len() {
                 let l3 = paging_allocate(os)?;
                 l2[l2_i] = l3.as_ptr() as u64 | 1 << 10 | 1 << 1 | 1;
                 l2_i += 1;
@@ -92,10 +87,12 @@ pub unsafe fn paging_create<
     Some(l0.as_ptr() as usize)
 }
 
-pub unsafe fn paging_framebuffer<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<u64> {
+pub unsafe fn paging_framebuffer<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+    page_phys: usize,
+    framebuffer_phys: u64,
+    framebuffer_size: u64,
+) -> Option<u64> {
     //TODO: smarter test for framebuffer already mapped
     if framebuffer_phys + framebuffer_size <= 0x2_0000_0000 {
         return Some(framebuffer_phys + PHYS_OFFSET);
@@ -106,10 +103,7 @@ pub unsafe fn paging_framebuffer<
     let mut l2_i = ((framebuffer_phys % 0x4000_0000) / 0x20_0000) as usize;
     assert_eq!(framebuffer_phys % 0x20_0000, 0);
 
-    let l0 = slice::from_raw_parts_mut(
-        page_phys as *mut u64,
-        PAGE_ENTRIES
-    );
+    let l0 = slice::from_raw_parts_mut(page_phys as *mut u64, PAGE_ENTRIES);
 
     // Create l1 for framebuffer mapping
     let l1 = if l0[l0_i] == 0 {
@@ -117,10 +111,7 @@ pub unsafe fn paging_framebuffer<
         l0[l0_i] = l1.as_ptr() as u64 | 1 << 10 | 1 << 1 | 1;
         l1
     } else {
-        slice::from_raw_parts_mut(
-            (l0[l0_i] & ENTRY_ADDRESS_MASK) as *mut u64,
-            PAGE_ENTRIES
-        )
+        slice::from_raw_parts_mut((l0[l0_i] & ENTRY_ADDRESS_MASK) as *mut u64, PAGE_ENTRIES)
     };
 
     // Map framebuffer_size at framebuffer offset

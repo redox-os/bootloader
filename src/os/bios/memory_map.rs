@@ -2,7 +2,7 @@ use core::{cmp, mem, ptr};
 
 use crate::os::{OsMemoryEntry, OsMemoryKind};
 
-use super::{MEMORY_MAP_ADDR, thunk::ThunkData};
+use super::{thunk::ThunkData, MEMORY_MAP_ADDR};
 
 #[repr(packed)]
 struct MemoryMapEntry {
@@ -28,7 +28,7 @@ impl MemoryMapIter {
 }
 
 impl Iterator for MemoryMapIter {
-    type Item=OsMemoryEntry;
+    type Item = OsMemoryEntry;
     fn next(&mut self) -> Option<Self::Item> {
         if self.first {
             self.first = false;
@@ -41,7 +41,9 @@ impl Iterator for MemoryMapIter {
         self.data.edx = 0x534D4150;
         self.data.edi = MEMORY_MAP_ADDR as u32;
 
-        unsafe { self.data.with(self.thunk15); }
+        unsafe {
+            self.data.with(self.thunk15);
+        }
 
         //TODO: return error?
         assert_eq!({ self.data.eax }, 0x534D4150);
@@ -65,20 +67,13 @@ pub unsafe fn memory_map(thunk15: extern "C" fn()) -> Option<(usize, usize)> {
     let mut heap_limits = None;
     for (i, entry) in MemoryMapIter::new(thunk15).enumerate() {
         let heap_start = 1 * 1024 * 1024;
-        if
-            { entry.kind } == OsMemoryKind::Free &&
-            entry.base <= heap_start as u64 &&
-            (entry.base + entry.size) >= heap_start as u64
+        if { entry.kind } == OsMemoryKind::Free
+            && entry.base <= heap_start as u64
+            && (entry.base + entry.size) >= heap_start as u64
         {
-            let heap_end = cmp::min(
-                entry.base + entry.size,
-                usize::MAX as u64
-            ) as usize;
+            let heap_end = cmp::min(entry.base + entry.size, usize::MAX as u64) as usize;
             if heap_end >= heap_start {
-                heap_limits = Some((
-                    heap_start,
-                    heap_end - heap_start
-                ));
+                heap_limits = Some((heap_start, heap_end - heap_start));
             }
         }
 

@@ -1,31 +1,14 @@
-use alloc::{
-    string::String,
-    vec::Vec,
-};
-use core::{
-    fmt::Write,
-    mem,
-    ptr,
-    slice,
-};
+use alloc::{string::String, vec::Vec};
+use core::{fmt::Write, mem, ptr, slice};
 use uefi::{
-    Handle,
     device::{
-        DevicePath,
-        DevicePathType,
-        DevicePathHardwareType,
-        DevicePathAcpiType,
-        DevicePathMessagingType,
-        DevicePathMediaType,
-        DevicePathBbsType,
-        DevicePathEndType,
+        DevicePath, DevicePathAcpiType, DevicePathBbsType, DevicePathEndType,
+        DevicePathHardwareType, DevicePathMediaType, DevicePathMessagingType, DevicePathType,
     },
     guid::Guid,
+    Handle,
 };
-use uefi_std::{
-    loaded_image::LoadedImage,
-    proto::Protocol,
-};
+use uefi_std::{loaded_image::LoadedImage, proto::Protocol};
 
 use super::disk::DiskEfi;
 
@@ -82,7 +65,11 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
     let esp_device_path = match DevicePathProtocol::handle_protocol(esp_handle) {
         Ok(ok) => ok,
         Err(err) => {
-            log::warn!("Failed to find device path protocol on {:?}: {:?}", esp_handle, err);
+            log::warn!(
+                "Failed to find device path protocol on {:?}: {:?}",
+                esp_handle,
+                err
+            );
             return Vec::new();
         }
     };
@@ -100,7 +87,11 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
         let disk = match DiskEfi::handle_protocol(handle) {
             Ok(ok) => ok,
             Err(err) => {
-                log::warn!("Failed to find block I/O protocol on {:?}: {:?}", handle, err);
+                log::warn!(
+                    "Failed to find block I/O protocol on {:?}: {:?}",
+                    handle,
+                    err
+                );
                 continue;
             }
         };
@@ -108,7 +99,11 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
         let device_path = match DevicePathProtocol::handle_protocol(handle) {
             Ok(ok) => ok,
             Err(err) => {
-                log::warn!("Failed to find device path protocol on {:?}: {:?}", handle, err);
+                log::warn!(
+                    "Failed to find device path protocol on {:?}: {:?}",
+                    handle,
+                    err
+                );
                 continue;
             }
         };
@@ -129,7 +124,7 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
                 DevicePathRelation::Parent(0) => {
                     boot_disks.push(devices.remove(i));
                     continue;
-                },
+                }
                 _ => (),
             }
 
@@ -148,7 +143,7 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
                     DevicePathRelation::Child(0) => {
                         priority.push(devices.remove(i));
                         continue;
-                    },
+                    }
                     _ => (),
                 }
             }
@@ -179,19 +174,16 @@ struct DevicePathHarddrive {
 pub fn device_path_to_string(device_path: &DevicePath) -> String {
     let mut s = String::new();
     for (node, node_data) in DevicePathIter::new(device_path) {
-        let read_u16 = |i: usize| -> u16 {
-            (node_data[i] as u16) |
-            (node_data[i + 1] as u16) << 8
-        };
+        let read_u16 = |i: usize| -> u16 { (node_data[i] as u16) | (node_data[i + 1] as u16) << 8 };
 
         let read_u32 = |i: usize| -> u32 {
-            (node_data[i] as u32) |
-            (node_data[i + 1] as u32) << 8 |
-            (node_data[i + 2] as u32) << 16 |
-            (node_data[i + 3] as u32) << 24
+            (node_data[i] as u32)
+                | (node_data[i + 1] as u32) << 8
+                | (node_data[i + 2] as u32) << 16
+                | (node_data[i + 3] as u32) << 24
         };
 
-        if ! s.is_empty() {
+        if !s.is_empty() {
             s.push('/');
         }
 
@@ -203,9 +195,9 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                             let func = node_data[0];
                             let dev = node_data[1];
                             write!(s, "Pci(0x{:X},0x{:X})", dev, func)
-                        },
+                        }
                         _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
-                    }
+                    },
                     Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
                 },
                 DevicePathType::Acpi => match DevicePathAcpiType::try_from(node.SubType) {
@@ -218,35 +210,40 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                             } else {
                                 write!(s, "Acpi(0x{:08X},0x{:X})", hid, uid)
                             }
-                        },
+                        }
                         _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
-                    }
+                    },
                     Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
                 },
-                DevicePathType::Messaging => match DevicePathMessagingType::try_from(node.SubType) {
-                    Ok(sub_type) => match sub_type {
-                        DevicePathMessagingType::Sata if node_data.len() == 6 => {
-                            let hba_port = read_u16(0);
-                            let multiplier_port = read_u16(2);
-                            let logical_unit = read_u16(4);
-                            if multiplier_port & (1 << 15) != 0 {
-                                write!(s, "Sata(0x{:X},0x{:X})", hba_port, logical_unit)
-                            } else {
-                                write!(s, "Sata(0x{:X},0x{:X},0x{:X})", hba_port, multiplier_port, logical_unit)
+                DevicePathType::Messaging => {
+                    match DevicePathMessagingType::try_from(node.SubType) {
+                        Ok(sub_type) => match sub_type {
+                            DevicePathMessagingType::Sata if node_data.len() == 6 => {
+                                let hba_port = read_u16(0);
+                                let multiplier_port = read_u16(2);
+                                let logical_unit = read_u16(4);
+                                if multiplier_port & (1 << 15) != 0 {
+                                    write!(s, "Sata(0x{:X},0x{:X})", hba_port, logical_unit)
+                                } else {
+                                    write!(
+                                        s,
+                                        "Sata(0x{:X},0x{:X},0x{:X})",
+                                        hba_port, multiplier_port, logical_unit
+                                    )
+                                }
                             }
-                        },
-                        DevicePathMessagingType::Usb if node_data.len() == 2 => {
-                            let port = node_data[0];
-                            let iface = node_data[1];
-                            write!(s, "Usb(0x{:X},0x{:X})", port, iface)
-                        },
-                        DevicePathMessagingType::Nvme if node_data.len() == 12 => {
-                            let nsid = read_u32(0);
-                            let eui = &node_data[4..];
-                            if eui == &[0, 0, 0, 0, 0, 0, 0, 0] {
-                                write!(s, "NVMe(0x{:X})", nsid)
-                            } else {
-                                write!(
+                            DevicePathMessagingType::Usb if node_data.len() == 2 => {
+                                let port = node_data[0];
+                                let iface = node_data[1];
+                                write!(s, "Usb(0x{:X},0x{:X})", port, iface)
+                            }
+                            DevicePathMessagingType::Nvme if node_data.len() == 12 => {
+                                let nsid = read_u32(0);
+                                let eui = &node_data[4..];
+                                if eui == &[0, 0, 0, 0, 0, 0, 0, 0] {
+                                    write!(s, "NVMe(0x{:X})", nsid)
+                                } else {
+                                    write!(
                                     s,
                                     "NVMe(0x{:X},{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X})",
                                     nsid,
@@ -259,25 +256,41 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                                     eui[6],
                                     eui[7],
                                 )
+                                }
                             }
+                            _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
                         },
-                        _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
+                        Err(()) => {
+                            write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data)
+                        }
                     }
-                    Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
-                },
+                }
                 DevicePathType::Media => match DevicePathMediaType::try_from(node.SubType) {
-                    Ok(sub_type) => match sub_type {
-                        DevicePathMediaType::Harddrive if node_data.len() == mem::size_of::<DevicePathHarddrive>() => {
-                            let harddrive = unsafe { ptr::read(node_data.as_ptr() as *const DevicePathHarddrive) };
-                            let partition_number = unsafe { ptr::read_unaligned(ptr::addr_of!(harddrive.partition_number)) };
-                            match harddrive.signature_type {
-                                1 => {
-                                    let id = unsafe { ptr::read(harddrive.partition_signature.as_ptr() as *const u32) };
-                                    write!(s, "HD(0x{:X},MBR,0x{:X})", partition_number, id)
-                                },
-                                2 => {
-                                    let guid = unsafe { ptr::read(harddrive.partition_signature.as_ptr() as *const Guid) };
-                                    write!(
+                    Ok(sub_type) => {
+                        match sub_type {
+                            DevicePathMediaType::Harddrive
+                                if node_data.len() == mem::size_of::<DevicePathHarddrive>() =>
+                            {
+                                let harddrive = unsafe {
+                                    ptr::read(node_data.as_ptr() as *const DevicePathHarddrive)
+                                };
+                                let partition_number = unsafe {
+                                    ptr::read_unaligned(ptr::addr_of!(harddrive.partition_number))
+                                };
+                                match harddrive.signature_type {
+                                    1 => {
+                                        let id = unsafe {
+                                            ptr::read(harddrive.partition_signature.as_ptr()
+                                                as *const u32)
+                                        };
+                                        write!(s, "HD(0x{:X},MBR,0x{:X})", partition_number, id)
+                                    }
+                                    2 => {
+                                        let guid = unsafe {
+                                            ptr::read(harddrive.partition_signature.as_ptr()
+                                                as *const Guid)
+                                        };
+                                        write!(
                                         s,
                                         "HD(0x{:X},GPT,{:08X}-{:04X}-{:04X}-{:02X}{:02X}-{:02X}{:02X}{:02X}{:02X}{:02X}{:02X})",
                                         partition_number,
@@ -293,42 +306,53 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                                         guid.3[6],
                                         guid.3[7],
                                     )
-                                },
-                                _ => {
-                                    write!(s, "HD(0x{:X},0x{:X},{:X?})", partition_number, harddrive.signature_type, harddrive.partition_signature)
+                                    }
+                                    _ => {
+                                        write!(
+                                            s,
+                                            "HD(0x{:X},0x{:X},{:X?})",
+                                            partition_number,
+                                            harddrive.signature_type,
+                                            harddrive.partition_signature
+                                        )
+                                    }
                                 }
                             }
-                        },
-                        DevicePathMediaType::Filepath => {
-                            for chunk in node_data.chunks_exact(2) {
-                                let data = (chunk[0] as u16) | (chunk[1] as u16) << 8;
-                                match unsafe { char::from_u32_unchecked(data as u32) } {
-                                    '\\' => s.push('/'),
-                                    c => s.push(c),
+                            DevicePathMediaType::Filepath => {
+                                for chunk in node_data.chunks_exact(2) {
+                                    let data = (chunk[0] as u16) | (chunk[1] as u16) << 8;
+                                    match unsafe { char::from_u32_unchecked(data as u32) } {
+                                        '\\' => s.push('/'),
+                                        c => s.push(c),
+                                    }
                                 }
+                                Ok(())
                             }
-                            Ok(())
-                        },
-                        _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
+                            _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
+                        }
                     }
                     Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
                 },
                 DevicePathType::Bbs => match DevicePathBbsType::try_from(node.SubType) {
                     Ok(sub_type) => match sub_type {
                         _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
-                    }
+                    },
                     Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
                 },
                 DevicePathType::End => match DevicePathEndType::try_from(node.SubType) {
                     Ok(sub_type) => match sub_type {
                         _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
-                    }
+                    },
                     Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
                 },
             },
             Err(()) => {
-                write!(s, "0x{:02X} 0x{:02X} {:X?}", node.Type, node.SubType, node_data)
-            },
+                write!(
+                    s,
+                    "0x{:02X} 0x{:02X} {:X?}",
+                    node.Type, node.SubType, node_data
+                )
+            }
         };
     }
     s
@@ -362,7 +386,6 @@ pub struct DevicePathIter<'a> {
     device_path: &'a DevicePath,
     node_ptr: *const DevicePath,
 }
-
 
 impl<'a> DevicePathIter<'a> {
     pub fn new(device_path: &'a DevicePath) -> Self {

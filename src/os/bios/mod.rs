@@ -1,20 +1,17 @@
 use alloc::alloc::{alloc_zeroed, Layout};
-use core::{
-    convert::TryFrom,
-    slice,
-};
+use core::{convert::TryFrom, slice};
 use linked_list_allocator::LockedHeap;
 use spin::Mutex;
 
-use crate::KernelArgs;
 use crate::logger::LOGGER;
 use crate::os::{Os, OsKey, OsVideoMode};
+use crate::KernelArgs;
 
 use self::disk::DiskBios;
 use self::memory_map::memory_map;
 use self::thunk::ThunkData;
 use self::vbe::VideoModeIter;
-use self::vga::{VgaTextColor, Vga};
+use self::vga::{Vga, VgaTextColor};
 
 #[macro_use]
 mod macros;
@@ -41,9 +38,7 @@ const VGA_ADDR: usize = 0xB8000;
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap::empty();
 
-pub(crate) static VGA: Mutex<Vga> = Mutex::new(
-    unsafe { Vga::new(VGA_ADDR, 80, 25) }
-);
+pub(crate) static VGA: Mutex<Vga> = Mutex::new(unsafe { Vga::new(VGA_ADDR, 80, 25) });
 
 pub struct OsBios {
     boot_disk: usize,
@@ -53,10 +48,7 @@ pub struct OsBios {
     thunk16: extern "C" fn(),
 }
 
-impl Os<
-    DiskBios,
-    VideoModeIter
-> for OsBios {
+impl Os<DiskBios, VideoModeIter> for OsBios {
     fn name(&self) -> &str {
         "x86/BIOS"
     }
@@ -67,12 +59,8 @@ impl Os<
         let page_size = self.page_size();
         let pages = (size + page_size - 1) / page_size;
 
-        let ptr = unsafe {
-            alloc_zeroed(Layout::from_size_align(
-                pages * page_size,
-                page_size
-            ).unwrap())
-        };
+        let ptr =
+            unsafe { alloc_zeroed(Layout::from_size_align(pages * page_size, page_size).unwrap()) };
 
         assert!(!ptr.is_null());
         ptr
@@ -82,7 +70,10 @@ impl Os<
         4096
     }
 
-    fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<DiskBios>> {
+    fn filesystem(
+        &self,
+        password_opt: Option<&[u8]>,
+    ) -> syscall::Result<redoxfs::FileSystem<DiskBios>> {
         let disk = DiskBios::new(u8::try_from(self.boot_disk).unwrap(), self.thunk13);
 
         //TODO: get block from partition table
@@ -104,7 +95,9 @@ impl Os<
         let mut data = ThunkData::new();
         data.eax = 0x4F02;
         data.ebx = mode.id;
-        unsafe { data.with(self.thunk10); }
+        unsafe {
+            data.with(self.thunk10);
+        }
         //TODO: check result
     }
 
@@ -115,12 +108,12 @@ impl Os<
         data.ecx = 0;
         data.edx = 0;
         data.edi = VBE_EDID_ADDR as u32;
-        unsafe { data.with(self.thunk10); }
+        unsafe {
+            data.with(self.thunk10);
+        }
 
         if data.eax == 0x4F {
-            let edid = unsafe {
-                slice::from_raw_parts(VBE_EDID_ADDR as *const u8, 128)
-            };
+            let edid = unsafe { slice::from_raw_parts(VBE_EDID_ADDR as *const u8, 128) };
 
             Some((
                 (edid[0x38] as u32) | (((edid[0x3A] as u32) & 0xF0) << 4),
@@ -135,7 +128,9 @@ impl Os<
     fn get_key(&self) -> OsKey {
         // Read keypress
         let mut data = ThunkData::new();
-        unsafe { data.with(self.thunk16); }
+        unsafe {
+            data.with(self.thunk16);
+        }
         match (data.eax >> 8) as u8 {
             0x4B => OsKey::Left,
             0x4D => OsKey::Right,
@@ -147,7 +142,7 @@ impl Os<
             _ => match data.eax as u8 {
                 0 => OsKey::Other,
                 b => OsKey::Char(b as char),
-            }
+            },
         }
     }
 
@@ -230,8 +225,7 @@ pub unsafe extern "C" fn start(
         thunk16,
     };
 
-    let (heap_start, heap_size) = memory_map(os.thunk15)
-        .expect("No memory for heap");
+    let (heap_start, heap_size) = memory_map(os.thunk15).expect("No memory for heap");
 
     ALLOCATOR.lock().init(heap_start as *mut u8, heap_size);
 
@@ -239,11 +233,13 @@ pub unsafe extern "C" fn start(
 
     kernel_entry(
         page_phys,
-        args.stack_base + args.stack_size + if crate::KERNEL_64BIT {
-            crate::arch::x64::PHYS_OFFSET as u64
-        } else {
-            crate::arch::x32::PHYS_OFFSET as u64
-        },
+        args.stack_base
+            + args.stack_size
+            + if crate::KERNEL_64BIT {
+                crate::arch::x64::PHYS_OFFSET as u64
+            } else {
+                crate::arch::x32::PHYS_OFFSET as u64
+            },
         func,
         &args,
         if crate::KERNEL_64BIT { 1 } else { 0 },

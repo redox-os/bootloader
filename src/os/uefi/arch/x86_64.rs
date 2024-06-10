@@ -5,20 +5,12 @@ use x86::{
     msr,
 };
 
-use crate::{
-    KernelArgs,
-    Os,
-    logger::LOGGER,
-};
+use crate::{logger::LOGGER, KernelArgs, Os};
 
 use super::super::{
-    OsEfi,
-    acpi::{
-        RSDP_AREA_BASE,
-        RSDP_AREA_SIZE,
-        find_acpi_table_pointers,
-    },
+    acpi::{find_acpi_table_pointers, RSDP_AREA_BASE, RSDP_AREA_SIZE},
     memory_map::memory_map,
+    OsEfi,
 };
 
 unsafe extern "C" fn kernel_entry(
@@ -60,9 +52,7 @@ unsafe extern "C" fn kernel_entry(
 
     // Enable paging, write protect kernel, protected mode
     let mut cr0 = controlregs::cr0();
-    cr0 |= Cr0::CR0_ENABLE_PAGING
-        | Cr0::CR0_WRITE_PROTECT
-        | Cr0::CR0_PROTECTED_MODE;
+    cr0 |= Cr0::CR0_ENABLE_PAGING | Cr0::CR0_WRITE_PROTECT | Cr0::CR0_PROTECTED_MODE;
     controlregs::cr0_write(cr0);
 
     // Set stack
@@ -91,11 +81,13 @@ pub fn main() -> Result<()> {
 
         kernel_entry(
             page_phys,
-            args.stack_base + args.stack_size + if crate::KERNEL_64BIT {
-                crate::arch::x64::PHYS_OFFSET as u64
-            } else {
-                crate::arch::x32::PHYS_OFFSET as u64
-            },
+            args.stack_base
+                + args.stack_size
+                + if crate::KERNEL_64BIT {
+                    crate::arch::x64::PHYS_OFFSET as u64
+                } else {
+                    crate::arch::x32::PHYS_OFFSET as u64
+                },
             func,
             &args,
         );

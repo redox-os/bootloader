@@ -23,7 +23,7 @@ pub fn rust_begin_unwind(info: &PanicInfo) -> ! {
 #[alloc_error_handler]
 #[no_mangle]
 #[allow(improper_ctypes_definitions)] // Layout is not repr(C)
-pub extern fn rust_oom(_layout: Layout) -> ! {
+pub extern "C" fn rust_oom(_layout: Layout) -> ! {
     panic!("memory allocation failed");
 }
 

@@ -24,8 +24,13 @@ fn validate_rsdp(address: usize, v2: bool) -> core::result::Result<usize, Invali
         _rsvd: [u8; 3],
     }
     // paging is not enabled at this stage; we can just read the physical address here.
-    let rsdp_bytes = unsafe { core::slice::from_raw_parts(address as *const u8, core::mem::size_of::<Rsdp>()) };
-    let rsdp = unsafe { (rsdp_bytes.as_ptr() as *const Rsdp).as_ref::<'static>().unwrap() };
+    let rsdp_bytes =
+        unsafe { core::slice::from_raw_parts(address as *const u8, core::mem::size_of::<Rsdp>()) };
+    let rsdp = unsafe {
+        (rsdp_bytes.as_ptr() as *const Rsdp)
+            .as_ref::<'static>()
+            .unwrap()
+    };
 
     log::debug!("RSDP: {:?}", rsdp);
 
@@ -51,15 +56,18 @@ fn validate_rsdp(address: usize, v2: bool) -> core::result::Result<usize, Invali
         }
     }
 
-    let length = if rsdp.revision == 2 { rsdp.length as usize } else { core::mem::size_of::<Rsdp>() };
+    let length = if rsdp.revision == 2 {
+        rsdp.length as usize
+    } else {
+        core::mem::size_of::<Rsdp>()
+    };
 
     Ok(length)
 }
 
-pub(crate) fn find_acpi_table_pointers<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>) {
+pub(crate) fn find_acpi_table_pointers<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+) {
     let cfg_tables = std::system_table().config_tables();
     let mut acpi = None;
     let mut acpi2 = None;
@@ -67,16 +75,26 @@ pub(crate) fn find_acpi_table_pointers<
         if cfg_table.VendorGuid.kind() == GuidKind::Acpi {
             match validate_rsdp(cfg_table.VendorTable, false) {
                 Ok(length) => {
-                    acpi = Some(unsafe { core::slice::from_raw_parts(cfg_table.VendorTable as *const u8, length) });
+                    acpi = Some(unsafe {
+                        core::slice::from_raw_parts(cfg_table.VendorTable as *const u8, length)
+                    });
                 }
-                Err(_) => log::warn!("Found RSDP that was not valid at {:p}", cfg_table.VendorTable as *const u8),
+                Err(_) => log::warn!(
+                    "Found RSDP that was not valid at {:p}",
+                    cfg_table.VendorTable as *const u8
+                ),
             }
         } else if cfg_table.VendorGuid.kind() == GuidKind::Acpi2 {
             match validate_rsdp(cfg_table.VendorTable, true) {
                 Ok(length) => {
-                    acpi2 = Some(unsafe { core::slice::from_raw_parts(cfg_table.VendorTable as *const u8, length) });
+                    acpi2 = Some(unsafe {
+                        core::slice::from_raw_parts(cfg_table.VendorTable as *const u8, length)
+                    });
                 }
-                Err(_) => log::warn!("Found RSDP that was not valid at {:p}", cfg_table.VendorTable as *const u8),
+                Err(_) => log::warn!(
+                    "Found RSDP that was not valid at {:p}",
+                    cfg_table.VendorTable as *const u8
+                ),
             }
         }
     }
@@ -88,10 +106,7 @@ pub(crate) fn find_acpi_table_pointers<
             // Copy to page aligned area
             RSDP_AREA_SIZE = rsdp_area.len();
             RSDP_AREA_BASE = os.alloc_zeroed_page_aligned(RSDP_AREA_SIZE);
-            slice::from_raw_parts_mut(
-                RSDP_AREA_BASE,
-                RSDP_AREA_SIZE
-            ).copy_from_slice(&rsdp_area);
+            slice::from_raw_parts_mut(RSDP_AREA_BASE, RSDP_AREA_SIZE).copy_from_slice(&rsdp_area);
         }
     }
 }

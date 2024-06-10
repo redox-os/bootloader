@@ -7,25 +7,22 @@ const PAGE_ENTRIES: usize = 1024;
 const PAGE_SIZE: usize = 4096;
 pub(crate) const PHYS_OFFSET: u32 = 0x8000_0000;
 
-unsafe fn paging_allocate<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>) -> Option<&'static mut [u32]> {
+unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+) -> Option<&'static mut [u32]> {
     let ptr = os.alloc_zeroed_page_aligned(PAGE_SIZE);
-    if ! ptr.is_null() {
-        Some(slice::from_raw_parts_mut(
-            ptr as *mut u32,
-            PAGE_ENTRIES
-        ))
+    if !ptr.is_null() {
+        Some(slice::from_raw_parts_mut(ptr as *mut u32, PAGE_ENTRIES))
     } else {
         None
     }
 }
 
-pub unsafe fn paging_create<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, kernel_phys: u64, kernel_size: u64) -> Option<usize> {
+pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+    kernel_phys: u64,
+    kernel_size: u64,
+) -> Option<usize> {
     let pd = paging_allocate(os)?;
     //Identity map 1 GiB using 4 MiB pages, also map at PHYS_OFFSET
     for pd_i in 0..256 {
@@ -37,7 +34,7 @@ pub unsafe fn paging_create<
     // Map kernel_size at kernel offset
     let mut kernel_mapped = 0;
     let mut pd_i = 0xC000_0000 / 0x40_0000;
-    while kernel_mapped < kernel_size && pd_i < pd.len(){
+    while kernel_mapped < kernel_size && pd_i < pd.len() {
         let pt = paging_allocate(os)?;
         pd[pd_i] = pt.as_ptr() as u32 | 1 << 1 | 1;
         pd_i += 1;
@@ -55,21 +52,20 @@ pub unsafe fn paging_create<
     Some(pd.as_ptr() as usize)
 }
 
-pub unsafe fn paging_framebuffer<
-    D: Disk,
-    V: Iterator<Item=OsVideoMode>
->(os: &mut dyn Os<D, V>, page_phys: usize, framebuffer_phys: u64, framebuffer_size: u64) -> Option<u64> {
+pub unsafe fn paging_framebuffer<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &mut dyn Os<D, V>,
+    page_phys: usize,
+    framebuffer_phys: u64,
+    framebuffer_size: u64,
+) -> Option<u64> {
     let framebuffer_virt = 0xD000_0000; // 256 MiB after kernel mapping, but before heap mapping
 
-    let pd = slice::from_raw_parts_mut(
-        page_phys as *mut u32,
-        PAGE_ENTRIES
-    );
+    let pd = slice::from_raw_parts_mut(page_phys as *mut u32, PAGE_ENTRIES);
 
     // Map framebuffer_size at framebuffer offset
     let mut framebuffer_mapped = 0;
     let mut pd_i = framebuffer_virt / 0x40_0000;
-    while framebuffer_mapped < framebuffer_size && pd_i < pd.len(){
+    while framebuffer_mapped < framebuffer_size && pd_i < pd.len() {
         let pt = paging_allocate(os)?;
         pd[pd_i] = pt.as_ptr() as u32 | 1 << 1 | 1;
         pd_i += 1;

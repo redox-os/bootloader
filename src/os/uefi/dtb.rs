@@ -83,8 +83,7 @@ fn parse_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os<D, V>, ad
             rsdps_area.resize(((rsdps_area.len() + (align - 1)) / align) * align, 0u8);
             RSDP_AREA_SIZE = rsdps_area.len();
             RSDP_AREA_BASE = os.alloc_zeroed_page_aligned(RSDP_AREA_SIZE);
-            slice::from_raw_parts_mut(RSDP_AREA_BASE, RSDP_AREA_SIZE)
-                .copy_from_slice(&rsdps_area);
+            slice::from_raw_parts_mut(RSDP_AREA_BASE, RSDP_AREA_SIZE).copy_from_slice(&rsdps_area);
         } else {
             println!("Failed to parse DTB");
         }
