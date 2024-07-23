@@ -22,9 +22,6 @@ unsafe extern "C" fn kernel_entry(
     // Read memory map and exit boot services
     memory_map().exit_boot_services();
 
-    // Disable interrupts
-    asm!("cli");
-
     // Enable FXSAVE/FXRSTOR, Page Global, Page Address Extension, and Page Size Extension
     let mut cr4 = controlregs::cr4();
     cr4 |= Cr4::CR4_ENABLE_SSE
@@ -82,5 +79,11 @@ pub fn main() -> Result<()> {
             func,
             &args,
         );
+    }
+}
+
+pub fn disable_interrupts() {
+    unsafe {
+        asm!("cli");
     }
 }

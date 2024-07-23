@@ -63,6 +63,9 @@ impl MemoryMapIter {
         status_to_result((uefi.BootServices.ExitBootServices)(handle, self.map_key))
             .expect("Failed to exit UEFI boot services");
 
+        // Runtime services must be called with interrupts disabled
+        super::arch::disable_interrupts();
+
         status_to_result((uefi.RuntimeServices.SetVirtualAddressMap)(
             self.map.len(),
             self.descriptor_size,

@@ -18,9 +18,6 @@ unsafe extern "C" fn kernel_entry(
     // Read memory map and exit boot services
     memory_map().exit_boot_services();
 
-    // Disable interrupts
-    asm!("msr daifset, #2");
-
     // Disable MMU
     asm!(
         "mrs {0}, sctlr_el1", // Read system control register
@@ -109,5 +106,11 @@ pub fn main() -> Result<()> {
             func,
             &args,
         );
+    }
+}
+
+pub fn disable_interrupts() {
+    unsafe {
+        asm!("msr daifset, #2");
     }
 }
