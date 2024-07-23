@@ -16,12 +16,8 @@ unsafe extern "C" fn kernel_entry(
     args: *const KernelArgs,
 ) -> ! {
     // Read memory map and exit boot services
-    {
-        let mut memory_iter = memory_map();
-        memory_iter.exit_boot_services();
-        memory_iter.set_virtual_address_map(PHYS_OFFSET);
-        mem::forget(memory_iter);
-    }
+    memory_map().exit_boot_services(PHYS_OFFSET);
+
     // Disable interrupts
     asm!("msr daifset, #2");
 

@@ -20,16 +20,12 @@ unsafe extern "C" fn kernel_entry(
     args: *const KernelArgs,
 ) -> ! {
     // Read memory map and exit boot services
-    {
-        let mut memory_iter = memory_map();
-        memory_iter.exit_boot_services();
-        memory_iter.set_virtual_address_map(if crate::KERNEL_64BIT {
-            crate::arch::x64::PHYS_OFFSET as u64
-        } else {
-            crate::arch::x32::PHYS_OFFSET as u64
-        });
-        mem::forget(memory_iter);
-    }
+    let phys_offset = if crate::KERNEL_64BIT {
+        crate::arch::x64::PHYS_OFFSET as u64
+    } else {
+        crate::arch::x32::PHYS_OFFSET as u64
+    };
+    memory_map().exit_boot_services(phys_offset);
 
     // Disable interrupts
     asm!("cli");
