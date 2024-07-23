@@ -50,14 +50,14 @@ impl MemoryMapIter {
         }
     }
 
-    pub fn exit_boot_services(mut self, phys_offset: u64) {
+    pub fn exit_boot_services(mut self) {
         let handle = std::handle();
         let uefi = std::system_table();
 
         for i in 0..self.map.len() / self.descriptor_size {
             let descriptor_ptr = unsafe { self.map.as_mut_ptr().add(i * self.descriptor_size) };
             let descriptor = unsafe { &mut *(descriptor_ptr as *mut MemoryDescriptor) };
-            descriptor.VirtualStart.0 = descriptor.PhysicalStart.0 + phys_offset;
+            descriptor.VirtualStart.0 = descriptor.PhysicalStart.0;
         }
 
         status_to_result((uefi.BootServices.ExitBootServices)(handle, self.map_key))

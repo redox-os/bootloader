@@ -16,7 +16,7 @@ unsafe extern "C" fn kernel_entry(
     args: *const KernelArgs,
 ) -> ! {
     // Read memory map and exit boot services
-    memory_map().exit_boot_services(PHYS_OFFSET);
+    memory_map().exit_boot_services();
 
     // Disable interrupts
     asm!("msr daifset, #2");
