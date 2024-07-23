@@ -54,9 +54,23 @@ impl MemoryMapIter {
         let handle = std::handle();
         let uefi = std::system_table();
 
+        // We are writing to the memory map that will be passed to
+        // SetVirtualAddressMap before ExitBootServices as on some firmware
+        // EfiLoaderData memory regions like this one are marked as read-only
+        // after ExitBootServices
         for i in 0..self.map.len() / self.descriptor_size {
             let descriptor_ptr = unsafe { self.map.as_mut_ptr().add(i * self.descriptor_size) };
             let descriptor = unsafe { &mut *(descriptor_ptr as *mut MemoryDescriptor) };
+
+            // Map all memory regions even when not marked as EFI_MEMORY_RUNTIME
+            // as some firmware uses memory regions not marked as
+            // EFI_MEMORY_RUNTIME in runtime services. Linux has a list of
+            // exactly which memory regions need to be mapped, but for simplicity
+            // we are mapping all regions here.
+
+            // Identity map all memory regions as some firmware fails to update
+            // all pointers in SetVirtualAddressMap.
+
             descriptor.VirtualStart.0 = descriptor.PhysicalStart.0;
         }
 
