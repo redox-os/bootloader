@@ -6,8 +6,6 @@ use crate::os::{OsMemoryEntry, OsMemoryKind};
 
 use super::status_to_result;
 
-const EFI_MEMORY_RUNTIME: u64 = 0x8000000000000000;
-
 pub struct MemoryMapIter {
     map: Vec<u8>,
     map_key: usize,
@@ -52,24 +50,21 @@ impl MemoryMapIter {
         }
     }
 
-    pub fn exit_boot_services(&self) {
+    pub fn exit_boot_services(mut self) {
         let handle = std::handle();
-        let uefi = std::system_table();
-
-        status_to_result((uefi.BootServices.ExitBootServices)(handle, self.map_key))
-            .expect("Failed to exit UEFI boot services");
-    }
-
-    pub fn set_virtual_address_map(&mut self, phys_offset: u64) {
         let uefi = std::system_table();
 
         for i in 0..self.map.len() / self.descriptor_size {
             let descriptor_ptr = unsafe { self.map.as_mut_ptr().add(i * self.descriptor_size) };
             let descriptor = unsafe { &mut *(descriptor_ptr as *mut MemoryDescriptor) };
-            if descriptor.Attribute & EFI_MEMORY_RUNTIME == EFI_MEMORY_RUNTIME {
-                descriptor.VirtualStart.0 = descriptor.PhysicalStart.0 + phys_offset;
-            }
+            descriptor.VirtualStart.0 = descriptor.PhysicalStart.0;
         }
+
+        status_to_result((uefi.BootServices.ExitBootServices)(handle, self.map_key))
+            .expect("Failed to exit UEFI boot services");
+
+        // Runtime services must be called with interrupts disabled
+        super::arch::disable_interrupts();
 
         status_to_result((uefi.RuntimeServices.SetVirtualAddressMap)(
             self.map.len(),
@@ -78,6 +73,10 @@ impl MemoryMapIter {
             self.map.as_ptr() as *const MemoryDescriptor,
         ))
         .expect("Failed to set UEFI runtime services virtual address map");
+
+        // After ExitBootServices, GlobalAlloc::dealloc() is not allowed anymore
+        // as it uses boot services.
+        mem::forget(self);
     }
 }
 
