@@ -1,9 +1,10 @@
 use byteorder::ByteOrder;
 use byteorder::BE;
 use fdt;
-use std::{slice, vec::Vec};
+use alloc::vec::Vec;
+use core::slice;
 use uefi::guid::GuidKind;
-use uefi::status::{Error, Result};
+use uefi::status::{Status, Result};
 
 use crate::{Disk, Os, OsVideoMode};
 
@@ -108,7 +109,7 @@ fn find_smbios3_system(address: *const u8) -> Result<dmidecode::System<'static>>
             }
         }
     }
-    Err(Error::NotFound)
+    Err(Status::NOT_FOUND)
 }
 
 pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os<D, V>) {

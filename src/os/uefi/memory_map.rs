@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use crate::std::prelude::vec;
 use core::{mem, ptr};
 use uefi::memory::{MemoryDescriptor, MemoryType};
 

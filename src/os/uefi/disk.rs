@@ -5,6 +5,7 @@ use std::proto::Protocol;
 use syscall::{Error, Result, EINVAL, EIO};
 use uefi::block_io::BlockIo as UefiBlockIo;
 use uefi::guid::{Guid, BLOCK_IO_GUID};
+use crate::os::uefi::Status;
 
 pub struct DiskEfi(pub &'static mut UefiBlockIo, &'static mut [u8]);
 
@@ -59,8 +60,9 @@ impl Disk for DiskEfi {
         let block_size = self.0.Media.BlockSize as u64;
         let lba = block * BLOCK_SIZE / block_size;
 
-        match (self.0.ReadBlocks)(self.0, self.0.Media.MediaId, lba, buffer.len(), ptr).branch() {
-            ControlFlow::Continue(_) => {
+        let status = (self.0.ReadBlocks)(self.0, self.0.Media.MediaId, lba, buffer.len(), ptr);
+        match status {
+            Status::SUCCESS => {
                 // Copy to original buffer if using aligned buffer
                 if ptr != buffer.as_mut_ptr() {
                     let (left, _) = self.1.split_at(buffer.len());
@@ -68,8 +70,8 @@ impl Disk for DiskEfi {
                 }
                 Ok(buffer.len())
             }
-            ControlFlow::Break(err) => {
-                println!("DiskEfi::read_at 0x{:X} failed: {:?}", block, err);
+            _ => {
+                println!("DiskEfi::read_at 0x{:X} failed: {:?}", block, status);
                 Err(Error::new(EIO))
             }
         }

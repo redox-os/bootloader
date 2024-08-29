@@ -325,9 +325,10 @@ impl Os<DiskEfi, VideoModeIter> for OsEfi {
 }
 
 fn status_to_result(status: Status) -> Result<usize> {
-    match status.branch() {
-        ControlFlow::Continue(ok) => Ok(ok),
-        ControlFlow::Break(err) => Err(err),
+    if status.is_error() {
+        Err(status)
+    } else {
+        Ok(status.0)
     }
 }
 
@@ -339,9 +340,8 @@ fn set_max_mode(output: &uefi::text::TextOutput) -> Result<()> {
     for i in 0..output.Mode.MaxMode as usize {
         let mut w = 0;
         let mut h = 0;
-        if (output.QueryMode)(output, i, &mut w, &mut h)
-            .branch()
-            .is_continue()
+
+        if !(output.QueryMode)(output, i, &mut w, &mut h).is_error()
         {
             if w >= max_w && h >= max_h {
                 max_i = Some(i);
@@ -352,7 +352,11 @@ fn set_max_mode(output: &uefi::text::TextOutput) -> Result<()> {
     }
 
     if let Some(i) = max_i {
-        (output.SetMode)(output, i)?;
+        let status = (output.SetMode)(output, i);
+
+        if !status.is_success() {
+            return Err(status);
+        }
     }
 
     Ok(())

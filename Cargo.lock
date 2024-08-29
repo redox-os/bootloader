@@ -236,12 +236,12 @@ dependencies = [
 [[package]]
 name = "redox_uefi"
 version = "0.1.12"
-source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#8e25274441fc590b870053479467b337cebeac60"
+source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#695096ab997d7a207cad90d976d8907306b7eb98"
 
 [[package]]
 name = "redox_uefi_alloc"
 version = "0.1.12"
-source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#8e25274441fc590b870053479467b337cebeac60"
+source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#695096ab997d7a207cad90d976d8907306b7eb98"
 dependencies = [
  "redox_uefi",
 ]
@@ -249,7 +249,7 @@ dependencies = [
 [[package]]
 name = "redox_uefi_std"
 version = "0.1.12"
-source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#8e25274441fc590b870053479467b337cebeac60"
+source = "git+https://gitlab.redox-os.org/redox-os/uefi.git#695096ab997d7a207cad90d976d8907306b7eb98"
 dependencies = [
  "redox_uefi",
  "redox_uefi_alloc",
