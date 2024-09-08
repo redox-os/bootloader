@@ -4,7 +4,7 @@ use super::THUNK_STACK_ADDR;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct ThunkData {
     pub es: u16,
     pub edi: u32,

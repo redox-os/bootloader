@@ -13,7 +13,7 @@ const MAX_BLOCKS: u64 = MAX_SECTORS * SECTOR_SIZE / BLOCK_SIZE;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy)]
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct DiskAddressPacket {
     size: u8,
     reserved: u8,

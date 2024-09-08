@@ -9,7 +9,7 @@ pub(crate) static mut RSDP_AREA_SIZE: usize = 0;
 struct Invalid;
 
 fn validate_rsdp(address: usize, v2: bool) -> core::result::Result<usize, Invalid> {
-    #[repr(packed)]
+    #[repr(C, packed)]
     #[derive(Clone, Copy, Debug)]
     struct Rsdp {
         signature: [u8; 8], // b"RSD PTR "

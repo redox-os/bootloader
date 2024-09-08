@@ -4,7 +4,7 @@ use crate::os::{OsMemoryEntry, OsMemoryKind};
 
 use super::{thunk::ThunkData, MEMORY_MAP_ADDR};
 
-#[repr(packed)]
+#[repr(C, packed)]
 struct MemoryMapEntry {
     pub base: u64,
     pub size: u64,

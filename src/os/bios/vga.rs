@@ -1,7 +1,7 @@
 use core::{fmt, slice};
 
 #[derive(Clone, Copy)]
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct VgaTextBlock {
     pub char: u8,
     pub color: u8,

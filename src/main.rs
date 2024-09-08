@@ -68,7 +68,7 @@ impl<'a> Write for SliceWriter<'a> {
 }
 
 #[allow(dead_code)]
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct KernelArgs {
     kernel_base: u64,
     kernel_size: u64,

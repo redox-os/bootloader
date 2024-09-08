@@ -6,7 +6,7 @@ use crate::os::OsVideoMode;
 use super::{ThunkData, VBE_CARD_INFO_ADDR, VBE_MODE_INFO_ADDR};
 
 #[derive(Clone, Copy, Debug)]
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct VbeFarPtr {
     pub offset: u16,
     pub segment: u16,
@@ -19,7 +19,7 @@ impl VbeFarPtr {
 }
 
 #[derive(Clone, Copy, Debug)]
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct VbeCardInfo {
     pub signature: [u8; 4],
     pub version: u16,
@@ -36,7 +36,7 @@ pub struct VbeCardInfo {
 }
 
 #[derive(Clone, Copy, Debug)]
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct VbeModeInfo {
     pub attributes: u16,
     pub win_a: u8,

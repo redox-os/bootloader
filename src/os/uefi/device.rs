@@ -160,7 +160,7 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
     priority
 }
 
-#[repr(packed)]
+#[repr(C, packed)]
 #[allow(dead_code)]
 struct DevicePathHarddrive {
     partition_number: u32,

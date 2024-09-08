@@ -28,7 +28,7 @@ bitflags! {
 }
 
 #[allow(dead_code)]
-#[repr(packed)]
+#[repr(C, packed)]
 pub struct SerialPort<T: Io> {
     /// Data register, read to receive, write to send
     data: T,
