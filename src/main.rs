@@ -285,7 +285,7 @@ fn redoxfs<D: Disk, V: Iterator<Item = OsVideoMode>>(
                             slice::from_raw_parts(password_base, password_size)
                         }
                     }),
-                )
+                );
             }
             Err(err) => match err.errno {
                 // Incorrect password, try again

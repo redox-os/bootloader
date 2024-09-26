@@ -1,0 +1,35 @@
+image: "redoxos/redoxer:latest"
+
+before_script:
+  - apt-get install nasm
+  - rustup component add rust-src
+
+stages:
+  - host
+
+build:i686:
+  stage: host
+  script:
+    - mkdir -p target/i686
+    - cd target/i686
+    - TARGET=x86-unknown-none make -f ${CI_PROJECT_DIR}/Makefile -C `pwd` `pwd`/bootloader.bin `pwd`/bootloader-live.bin
+
+build:x86_64:
+  stage: host
+  script:
+    - mkdir -p target/x86_64
+    - cd target/x86_64
+    - TARGET=x86_64-unknown-uefi make -f ${CI_PROJECT_DIR}/Makefile -C `pwd` `pwd`/bootloader.efi `pwd`/bootloader-live.efi
+
+build:aarch64:
+  stage: host
+  script:
+    - mkdir -p target/aarch64
+    - cd target/aarch64
+    - TARGET=aarch64-unknown-uefi make -f ${CI_PROJECT_DIR}/Makefile -C `pwd` `pwd`/bootloader.efi `pwd`/bootloader-live.efi
+
+fmt:
+  stage: host
+  script:
+      - rustup component add rustfmt-preview
+      - cargo fmt -- --check
