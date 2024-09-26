@@ -22,6 +22,7 @@ $(BUILD)/libbootloader-live.a: $(SOURCE)/Cargo.toml $(SOURCE)/Cargo.lock $(shell
 	mkdir -p "$(BUILD)"
 	env RUSTFLAGS="-C soft-float" \
 	cargo rustc \
+		--manifest-path="$<" \
 		-Z build-std=core,alloc \
 		-Z build-std-features=compiler-builtins-mem \
 		--target "$(TARGET)" \
