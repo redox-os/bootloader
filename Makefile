@@ -1,8 +1,10 @@
 TARGET?=x86_64-unknown-uefi
-BUILD=build/$(TARGET)
-export RUST_TARGET_PATH=$(CURDIR)/targets
+SOURCE:=$(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+BUILD:=$(CURDIR)
+export RUST_TARGET_PATH?=$(SOURCE)/targets
 
-include mk/$(TARGET).mk
+
+include $(SOURCE)/mk/$(TARGET).mk
 
 clean:
 	rm -rf build target
