@@ -26,6 +26,7 @@ use redoxfs::Disk;
 
 use self::arch::{paging_create, paging_framebuffer};
 use self::os::{Os, OsKey, OsMemoryEntry, OsMemoryKind, OsVideoMode};
+use crate::std::prelude::format;
 
 #[macro_use]
 mod os;

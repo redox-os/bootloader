@@ -1,4 +1,5 @@
-use std::{slice, vec::Vec};
+use alloc::vec::Vec;
+use core::slice;
 use uefi::guid::GuidKind;
 
 use crate::{Disk, Os, OsVideoMode};
