@@ -1,11 +1,11 @@
-use core::{arch::asm, mem, ptr};
+use core::{arch::asm, mem};
 use uefi::status::Result;
 use x86::{
     controlregs::{self, Cr0, Cr4},
     msr,
 };
 
-use crate::{logger::LOGGER, KernelArgs, Os};
+use crate::{logger::LOGGER, KernelArgs};
 
 use super::super::{
     acpi::{find_acpi_table_pointers, RSDP_AREA_BASE, RSDP_AREA_SIZE},

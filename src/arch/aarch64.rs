@@ -44,7 +44,7 @@ pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
                 let addr = l1_i as u64 * 0x4000_0000 + l2_i as u64 * 0x20_0000;
                 l2[l2_i] = addr | 1 << 10 | 1;
                 if is_in_dev_mem_region(cur_addr) {
-                    l2[l2_i] |= (2 << 2);
+                    l2[l2_i] |= 2 << 2;
                 }
                 cur_addr += 0x20_0000;
             }
