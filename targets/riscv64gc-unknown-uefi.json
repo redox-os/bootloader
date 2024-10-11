@@ -1,0 +1,26 @@
+{
+  "arch": "riscv64",
+  "code-model": "medium",
+  "cpu": "generic-rv64",
+  "data-layout": "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128",
+  "default-hidden-visibility": true,
+  "emit-debug-gdb-scripts": false,
+  "exe-suffix": ".elf",
+  "executables": true,
+  "linker-flavor": "gnu-cc",
+  "linker": "riscv64-unknown-redox-gcc",
+  "llvm-abiname": "lp64d",
+  "features": "+m,+a,+f,+d,+c",
+  "llvm-target": "riscv64-unknown-none-elf",
+  "os": "uefi",
+  "metadata": {
+    "description": null,
+    "host_tools": null,
+    "std": null,
+    "tier": null
+  },
+  "panic-strategy": "abort",
+  "target-c-int-width": "32",
+  "target-endian": "little",
+  "target-pointer-width": "64"
+}
