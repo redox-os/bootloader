@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 use core::{mem, ptr};
 use uefi::memory::{MemoryDescriptor, MemoryType};
 
+use crate::area_add;
 use crate::os::{OsMemoryEntry, OsMemoryKind};
 
 use super::status_to_result;
@@ -130,7 +131,7 @@ pub unsafe fn memory_map() -> MemoryMapIter {
 
     // Using next to avoid consuming iterator
     while let Some(entry) = iter.next() {
-        crate::AREAS[iter.i] = entry;
+        area_add(entry);
     }
 
     // Rewind iterator

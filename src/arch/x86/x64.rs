@@ -1,7 +1,8 @@
 use core::slice;
 use redoxfs::Disk;
 
-use crate::os::{Os, OsVideoMode};
+use crate::area_add;
+use crate::os::{Os, OsMemoryEntry, OsMemoryKind, OsVideoMode};
 
 const ENTRY_ADDRESS_MASK: u64 = 0x000F_FFFF_FFFF_F000;
 const PAGE_ENTRIES: usize = 512;
@@ -13,6 +14,12 @@ unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
 ) -> Option<&'static mut [u64]> {
     let ptr = os.alloc_zeroed_page_aligned(PAGE_SIZE);
     if !ptr.is_null() {
+        area_add(OsMemoryEntry {
+            base: ptr as u64,
+            size: PAGE_SIZE as u64,
+            kind: OsMemoryKind::Reclaim,
+        });
+
         Some(slice::from_raw_parts_mut(ptr as *mut u64, PAGE_ENTRIES))
     } else {
         None
