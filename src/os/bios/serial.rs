@@ -1,5 +1,5 @@
 use spin::Mutex;
-use syscall::{Io, Pio};
+use syscall::Pio;
 
 use crate::serial_16550::SerialPort;
 
