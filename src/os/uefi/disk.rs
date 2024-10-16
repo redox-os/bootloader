@@ -1,4 +1,3 @@
-use core::ops::{ControlFlow, Try};
 use core::slice;
 use redoxfs::{Disk, BLOCK_SIZE, RECORD_SIZE};
 use std::proto::Protocol;
@@ -59,8 +58,8 @@ impl Disk for DiskEfi {
         let block_size = self.0.Media.BlockSize as u64;
         let lba = block * BLOCK_SIZE / block_size;
 
-        match (self.0.ReadBlocks)(self.0, self.0.Media.MediaId, lba, buffer.len(), ptr).branch() {
-            ControlFlow::Continue(_) => {
+        match (self.0.ReadBlocks)(self.0, self.0.Media.MediaId, lba, buffer.len(), ptr) {
+            status if status.is_success() => {
                 // Copy to original buffer if using aligned buffer
                 if ptr != buffer.as_mut_ptr() {
                     let (left, _) = self.1.split_at(buffer.len());
@@ -68,7 +67,7 @@ impl Disk for DiskEfi {
                 }
                 Ok(buffer.len())
             }
-            ControlFlow::Break(err) => {
+            err => {
                 println!("DiskEfi::read_at 0x{:X} failed: {:?}", block, err);
                 Err(Error::new(EIO))
             }

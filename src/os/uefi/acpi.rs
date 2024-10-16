@@ -1,5 +1,5 @@
-use std::{slice, vec::Vec};
-use uefi::guid::GuidKind;
+use core::slice;
+use uefi::guid::{ACPI_20_TABLE_GUID, ACPI_TABLE_GUID};
 
 use crate::{Disk, Os, OsVideoMode};
 
@@ -8,7 +8,7 @@ pub(crate) static mut RSDP_AREA_SIZE: usize = 0;
 
 struct Invalid;
 
-fn validate_rsdp(address: usize, v2: bool) -> core::result::Result<usize, Invalid> {
+fn validate_rsdp(address: usize, _v2: bool) -> core::result::Result<usize, Invalid> {
     #[repr(C, packed)]
     #[derive(Clone, Copy, Debug)]
     struct Rsdp {
@@ -72,7 +72,7 @@ pub(crate) fn find_acpi_table_pointers<D: Disk, V: Iterator<Item = OsVideoMode>>
     let mut acpi = None;
     let mut acpi2 = None;
     for cfg_table in cfg_tables.iter() {
-        if cfg_table.VendorGuid.kind() == GuidKind::Acpi {
+        if cfg_table.VendorGuid == ACPI_TABLE_GUID {
             match validate_rsdp(cfg_table.VendorTable, false) {
                 Ok(length) => {
                     acpi = Some(unsafe {
@@ -84,7 +84,7 @@ pub(crate) fn find_acpi_table_pointers<D: Disk, V: Iterator<Item = OsVideoMode>>
                     cfg_table.VendorTable as *const u8
                 ),
             }
-        } else if cfg_table.VendorGuid.kind() == GuidKind::Acpi2 {
+        } else if cfg_table.VendorGuid == ACPI_20_TABLE_GUID {
             match validate_rsdp(cfg_table.VendorTable, true) {
                 Ok(length) => {
                     acpi2 = Some(unsafe {

@@ -71,7 +71,7 @@ impl Vga {
 
 impl fmt::Write for Vga {
     fn write_str(&mut self, s: &str) -> Result<(), fmt::Error> {
-        let mut blocks = unsafe { self.blocks() };
+        let blocks = unsafe { self.blocks() };
         for c in s.chars() {
             if self.x >= self.width {
                 self.x = 0;

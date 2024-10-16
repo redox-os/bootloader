@@ -1,4 +1,4 @@
-use core::{arch::asm, mem, ptr};
+use core::{arch::asm, mem};
 use uefi::status::Result;
 
 use crate::{arch::PHYS_OFFSET, logger::LOGGER, KernelArgs};
@@ -68,8 +68,8 @@ unsafe extern "C" fn kernel_entry(
         "orr {2}, {2}, {1}", // Set bits
         "msr sctlr_el1, {2}", // Write system control register
         "isb", // Instruction sync barrier
-        in(reg) 0x32802c2,  // Clear SCTLR bits: (EE, EOE, IESB, WXN, UMA, ITD, THEE, A)
-        in(reg) 0x3485d13d, // Set SCTLR bits: (LSMAOE, nTLSMD, UCI, SPAN, nTWW, nTWI, UCT, DZE, I, SED, SA0, SA, C, M, CP15BEN)
+        in(reg) 0x32802c2u64,  // Clear SCTLR bits: (EE, EOE, IESB, WXN, UMA, ITD, THEE, A)
+        in(reg) 0x3485d13du64, // Set SCTLR bits: (LSMAOE, nTLSMD, UCI, SPAN, nTWW, nTWI, UCT, DZE, I, SED, SA0, SA, C, M, CP15BEN)
         out(reg) _,
     );
 

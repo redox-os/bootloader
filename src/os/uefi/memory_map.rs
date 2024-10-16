@@ -1,3 +1,4 @@
+use alloc::vec;
 use alloc::vec::Vec;
 use core::{mem, ptr};
 use uefi::memory::{MemoryDescriptor, MemoryType};

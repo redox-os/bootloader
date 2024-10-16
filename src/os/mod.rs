@@ -8,7 +8,7 @@ pub use self::bios::*;
 mod bios;
 
 #[cfg(target_os = "uefi")]
-pub use self::uefi::*;
+pub use self::uefi::dtb;
 
 #[cfg(target_os = "uefi")]
 #[macro_use]
@@ -60,6 +60,7 @@ pub trait Os<D: Disk, V: Iterator<Item = OsVideoMode>> {
 
     fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8;
 
+    #[allow(dead_code)]
     fn page_size(&self) -> usize;
 
     fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<D>>;

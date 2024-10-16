@@ -1,9 +1,6 @@
-use core::{
-    ops::{ControlFlow, Try},
-    ptr,
-};
+use core::ptr;
 use log::error;
-use std::proto::Protocol;
+use uefi::status::Status;
 
 use crate::os::uefi::display::Output;
 use crate::os::OsVideoMode;
@@ -29,9 +26,9 @@ impl Iterator for VideoModeIter {
 
                 let mut mode_ptr = ::core::ptr::null_mut();
                 let mut mode_size = 0;
-                match (output.0.QueryMode)(output.0, id, &mut mode_size, &mut mode_ptr).branch() {
-                    ControlFlow::Continue(_) => (),
-                    ControlFlow::Break(err) => {
+                match (output.0.QueryMode)(output.0, id, &mut mode_size, &mut mode_ptr) {
+                    Status::SUCCESS => (),
+                    err => {
                         error!("Failed to read mode {}: {:?}", id, err);
                         continue;
                     }

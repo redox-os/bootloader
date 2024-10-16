@@ -2,6 +2,7 @@
 #![feature(alloc_error_handler)]
 #![feature(int_roundings)]
 #![feature(lang_items)]
+#![allow(internal_features)]
 #![cfg_attr(
     target_os = "uefi",
     no_main,
@@ -9,14 +10,13 @@
     feature(try_trait_v2)
 )]
 
-#[cfg_attr(target_os = "none", macro_use)]
 extern crate alloc;
 
 #[cfg(target_os = "uefi")]
 #[macro_use]
 extern crate uefi_std as std;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 use core::{
     cmp,
     fmt::{self, Write},

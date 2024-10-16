@@ -110,7 +110,7 @@ impl Disk for DiskBios {
                 chunk.len() as u64 / BLOCK_SIZE,
             );
 
-            if let Some((c_max, h_max, s_max)) = self.chs_opt {
+            if let Some((_, h_max, s_max)) = self.chs_opt {
                 let s = (dap.address % s_max as u64) + 1;
                 assert!(s <= 63, "invalid sector {}", s);
 

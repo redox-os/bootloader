@@ -187,7 +187,7 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
             s.push('/');
         }
 
-        let write_result = match DevicePathType::try_from(node.Type) {
+        let _ = match DevicePathType::try_from(node.Type) {
             Ok(path_type) => match path_type {
                 DevicePathType::Hardware => match DevicePathHardwareType::try_from(node.SubType) {
                     Ok(sub_type) => match sub_type {
