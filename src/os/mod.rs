@@ -8,7 +8,8 @@ pub use self::bios::*;
 mod bios;
 
 #[cfg(target_os = "uefi")]
-pub use self::uefi::dtb;
+#[allow(unused_imports)]
+pub use self::uefi::*;
 
 #[cfg(target_os = "uefi")]
 #[macro_use]
@@ -39,7 +40,7 @@ pub enum OsMemoryKind {
 
 // Keep synced with BootloaderMemoryEntry in kernel
 #[derive(Clone, Copy, Debug)]
-#[repr(C, packed)]
+#[repr(C, packed(8))]
 pub struct OsMemoryEntry {
     pub base: u64,
     pub size: u64,

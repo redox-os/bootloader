@@ -38,11 +38,31 @@ const KIBI: usize = 1024;
 const MIBI: usize = KIBI * KIBI;
 
 //TODO: allocate this in a more reasonable manner
-pub static mut AREAS: [OsMemoryEntry; 1024] = [OsMemoryEntry {
+static mut AREAS: [OsMemoryEntry; 1024] = [OsMemoryEntry {
     base: 0,
     size: 0,
     kind: OsMemoryKind::Null,
 }; 1024];
+static mut AREAS_LEN: usize = 0;
+
+pub fn area_add(area: OsMemoryEntry) {
+    unsafe {
+        for existing_area in &mut AREAS[0..AREAS_LEN] {
+            if existing_area.kind == area.kind {
+                if existing_area.base.unchecked_add(existing_area.size) == area.base {
+                    existing_area.size += area.size;
+                    return;
+                }
+                if area.base.unchecked_add(area.size) == existing_area.base {
+                    existing_area.base = area.base;
+                    return;
+                }
+            }
+        }
+        *AREAS.get_mut(AREAS_LEN).expect("AREAS overflowed!") = area;
+        AREAS_LEN += 1;
+    }
+}
 
 pub static mut KERNEL_64BIT: bool = false;
 
@@ -68,7 +88,7 @@ impl<'a> Write for SliceWriter<'a> {
 }
 
 #[allow(dead_code)]
-#[repr(C, packed)]
+#[repr(C, packed(8))]
 pub struct KernelArgs {
     kernel_base: u64,
     kernel_size: u64,
@@ -473,11 +493,16 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
             LIVE_OPT = Some((fs.block, slice::from_raw_parts_mut(ptr, size as usize)));
         }
 
+        area_add(OsMemoryEntry {
+            base: live.as_ptr() as u64,
+            size: live.len() as u64,
+            kind: OsMemoryKind::Reserved,
+        });
+
         Some(live)
     } else {
         None
     };
-    //TODO: properly reserve live disk so kernel does not re-use it
 
     let (kernel, kernel_entry) = {
         let kernel = load_to_memory(os, &mut fs, "boot", "kernel", Filetype::Elf);
@@ -504,7 +529,6 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
 
     let page_phys = unsafe { paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64) }
         .expect("Failed to set up paging");
-    //TODO: properly reserve page table allocations so kernel does not re-use them
 
     let mut env_size = 4 * KIBI;
     let env_base = os.alloc_zeroed_page_aligned(env_size);
