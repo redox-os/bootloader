@@ -25,10 +25,13 @@ mod arch;
 mod device;
 mod disk;
 mod display;
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 pub mod dtb;
 mod memory_map;
 mod video_mode;
+
+#[cfg(target_arch = "riscv64")]
+pub use arch::efi_get_boot_hartid;
 
 pub(crate) fn page_size() -> usize {
     // EDK2 always uses 4096 as the page size
@@ -153,6 +156,11 @@ impl Os<DiskEfi, VideoModeIter> for OsEfi {
     #[cfg(target_arch = "x86_64")]
     fn name(&self) -> &str {
         "x86_64/UEFI"
+    }
+
+    #[cfg(target_arch = "riscv64")]
+    fn name(&self) -> &str {
+        "riscv64/UEFI"
     }
 
     fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8 {

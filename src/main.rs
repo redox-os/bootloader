@@ -3,12 +3,9 @@
 #![feature(int_roundings)]
 #![feature(lang_items)]
 #![allow(internal_features)]
-#![cfg_attr(
-    target_os = "uefi",
-    no_main,
-    feature(control_flow_enum),
-    feature(try_trait_v2)
-)]
+#![feature(let_chains)]
+#![cfg_attr(target_os = "uefi", no_main, feature(try_trait_v2))]
+#![cfg_attr(target_arch = "riscv64", feature(naked_functions))]
 
 extern crate alloc;
 
@@ -566,6 +563,13 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
             )
             .unwrap();
             writeln!(w, "REDOXFS_PASSWORD_SIZE={:016x}", password.len()).unwrap();
+        }
+
+        #[cfg(target_arch = "riscv64")]
+        {
+            let boot_hartid = os::efi_get_boot_hartid()
+                .expect("Could not retrieve boot hart id from EFI implementation!");
+            writeln!(w, "BOOT_HART_ID={:016x}", boot_hartid).unwrap();
         }
 
         for output_i in 0..os.video_outputs() {
