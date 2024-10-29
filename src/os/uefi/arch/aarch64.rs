@@ -1,13 +1,34 @@
-use core::{arch::asm, mem};
+use core::{arch::asm, fmt::Write, mem, slice};
 use uefi::status::Result;
 
-use crate::{arch::PHYS_OFFSET, logger::LOGGER, KernelArgs};
+use crate::{arch::{ENTRY_ADDRESS_MASK, PAGE_ENTRIES, PHYS_OFFSET, PF_PRESENT, PF_TABLE}, logger::LOGGER, KernelArgs};
 
 use super::super::{
     dtb::{find_dtb, RSDP_AREA_BASE, RSDP_AREA_SIZE},
     memory_map::memory_map,
     OsEfi,
 };
+
+unsafe fn dump_page_tables(table_phys: u64, table_virt: usize, table_level: usize) {
+    let entries = slice::from_raw_parts(table_phys as *const u64, PAGE_ENTRIES);
+    for (i, entry) in entries.iter().enumerate() {
+        let phys = entry & ENTRY_ADDRESS_MASK;
+        let flags = entry & !ENTRY_ADDRESS_MASK;
+        if flags & PF_PRESENT == 0 {
+            continue;
+        }
+        let mut shift = 39;
+        for _ in 0..table_level {
+            shift -= 9;
+            print!("\t");
+        }
+        let virt = table_virt + i << shift;
+        println!("virt {:#x}: phys {:#x} flags {:#x}", virt, phys, flags);
+        if table_level < 3 && flags & PF_TABLE == PF_TABLE {
+            dump_page_tables(phys, virt, table_level + 1);
+        }
+    }
+}
 
 unsafe extern "C" fn kernel_entry(
     page_phys: usize,
@@ -18,6 +39,89 @@ unsafe extern "C" fn kernel_entry(
     // Read memory map and exit boot services
     memory_map().exit_boot_services();
 
+    let currentel: u64;
+    asm!(
+        "mrs {0}, currentel", // Read current exception level
+        out(reg) currentel,
+    );
+    if currentel == (2 << 2) {
+        // Need to drop from EL2 to EL1
+
+        // Allow access to timers
+        asm!(
+            "mrs {0}, cnthctl_el2",
+            "orr {0}, {0}, #0x3",
+            "msr cnthctl_el2, {0}",
+            "msr cntvoff_el2, xzr",
+            out(reg) _
+        );
+
+        // Initialize ID registers
+        asm!(
+            "mrs {0}, midr_el1",
+            "msr vpidr_el2, {0}",
+            "mrs {0}, mpidr_el1",
+            "msr vmpidr_el2, {0}",
+            out(reg) _
+        );
+
+        // Disable traps
+        asm!(
+            "msr cptr_el2, {0}",
+            "msr hstr_el2, xzr",
+            in(reg) 0x33FF as u64
+        );
+
+        // Enable floating point
+        asm!(
+            "msr cpacr_el1, {0}",
+            in(reg) (3 << 20) as u64
+        );
+
+        // Set EL1 system control register
+        asm!(
+            "msr sctlr_el1, {0}",
+            in(reg) 0x30d00800 as u64
+        );
+
+        // Set EL1 stack and VBAR
+        asm!(
+            "mov {0}, sp",
+            "msr sp_el1, {0}",
+            "mrs {0}, vbar_el2",
+            "msr vbar_el1, {0}",
+            out(reg) _
+        );
+
+        // Configure execution state of EL1 as aarch64 and disable hypervisor call
+        asm!(
+            "msr hcr_el2, {0}",
+            in(reg) ((1 << 31) | (1 << 29)) as u64,
+        );
+
+        // Set saved program status register
+        asm!(
+            "msr spsr_el2, {0}",
+            in(reg) 0x3C5 as u64
+        );
+
+        // Switch to EL1
+        asm!(
+            "adr {0}, 1f",
+            "msr elr_el2, {0}",
+            "eret",
+            "1:",
+            out(reg) _
+        );
+    } else if currentel == (1 << 2) {
+        // Already in EL1
+    } else {
+        //TODO: what to do if not EL2 or already EL1?
+        loop {
+            asm!("wfi");
+        }
+    }
+
     // Disable MMU
     asm!(
         "mrs {0}, sctlr_el1", // Read system control register
@@ -25,16 +129,6 @@ unsafe extern "C" fn kernel_entry(
         "msr sctlr_el1, {0}", // Write system control register
         "isb", // Instruction sync barrier
         out(reg) _,
-    );
-
-    // Set page tables
-    asm!(
-        "dsb sy", // Data sync barrier
-        "msr ttbr1_el1, {0}", // Set higher half page table
-        "msr ttbr0_el1, {0}", // Set lower half page table
-        "isb", // Instruction sync barrier
-        "tlbi vmalle1is", // Invalidate TLB
-        in(reg) page_phys,
     );
 
     // Set MAIR
@@ -55,10 +149,23 @@ unsafe extern "C" fn kernel_entry(
     asm!(
         "mrs {1}, id_aa64mmfr0_el1", // Read memory model feature register
         "bfi {0}, {1}, #32, #3",
-        "msr tcr_el1, {0}", // Write translaction control register
+        "msr tcr_el1, {0}", // Write translation control register
         "isb", // Instruction sync barrier
         in(reg) 0x1085100510u64, // TCR: (TxSZ, ASID_16, TG1_4K, Cache Attrs, SMP Attrs)
         out(reg) _,
+    );
+
+    // Set page tables
+    asm!(
+        "dsb sy", // Data sync barrier
+        "msr ttbr1_el1, {0}", // Set higher half page table
+        "msr ttbr0_el1, {0}", // Set lower half page table
+        "isb", // Instruction sync barrier
+        "dsb ishst", // Data sync barrier, only for stores, and only for inner shareable domain
+        "tlbi vmalle1is", // Invalidate TLB
+        "dsb ish", // Dta sync bariar, only for inner shareable domain
+        "isb", // Instruction sync barrier
+        in(reg) page_phys,
     );
 
     // Enable MMU
@@ -84,9 +191,6 @@ unsafe extern "C" fn kernel_entry(
 pub fn main() -> Result<()> {
     LOGGER.init();
 
-    //TODO: support this in addition to ACPI?
-    // let dtb = find_dtb()?;
-
     let mut os = OsEfi::new();
 
     // Disable cursor
@@ -100,9 +204,11 @@ pub fn main() -> Result<()> {
         args.acpi_rsdp_base = RSDP_AREA_BASE as u64;
         args.acpi_rsdp_size = RSDP_AREA_SIZE as u64;
 
+        let stack = args.stack_base + args.stack_size + PHYS_OFFSET;
+
         kernel_entry(
             page_phys,
-            args.stack_base + args.stack_size + PHYS_OFFSET,
+            stack,
             func,
             &args,
         );
