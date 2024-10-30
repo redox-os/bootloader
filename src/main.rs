@@ -22,7 +22,7 @@ use core::{
 use redoxfs::Disk;
 
 use self::arch::{paging_create, paging_framebuffer};
-use self::os::{Os, OsKey, OsMemoryEntry, OsMemoryKind, OsVideoMode};
+use self::os::{Os, OsHwDesc, OsKey, OsMemoryEntry, OsMemoryKind, OsVideoMode};
 
 #[macro_use]
 mod os;
@@ -85,6 +85,7 @@ impl<'a> Write for SliceWriter<'a> {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 #[repr(C, packed(8))]
 pub struct KernelArgs {
     kernel_base: u64,
@@ -111,7 +112,7 @@ pub struct KernelArgs {
 }
 
 fn select_mode<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
     output_i: usize,
 ) -> Option<OsVideoMode> {
     let mut modes = Vec::new();
@@ -253,7 +254,7 @@ fn select_mode<D: Disk, V: Iterator<Item = OsVideoMode>>(
 }
 
 fn redoxfs<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
 ) -> (redoxfs::FileSystem<D>, Option<&'static [u8]>) {
     let attempts = 10;
     for attempt in 0..=attempts {
@@ -322,7 +323,7 @@ enum Filetype {
     Initfs,
 }
 fn load_to_memory<D: Disk>(
-    os: &mut dyn Os<D, impl Iterator<Item = OsVideoMode>>,
+    os: &dyn Os<D, impl Iterator<Item = OsVideoMode>>,
     fs: &mut redoxfs::FileSystem<D>,
     dirname: &str,
     filename: &str,
@@ -427,13 +428,21 @@ fn elf_entry(data: &[u8]) -> (u64, bool) {
 }
 
 fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
 ) -> (usize, u64, KernelArgs) {
     println!(
         "Redox OS Bootloader {} on {}",
         env!("CARGO_PKG_VERSION"),
         os.name()
     );
+
+    let hwdesc = os.hwdesc();
+    println!("Hardware descriptor: {:x?}", hwdesc);
+    let (acpi_rsdp_base, acpi_rsdp_size) = match hwdesc {
+        OsHwDesc::Acpi(base, size) => (base, size),
+        OsHwDesc::DeviceTree(base, size) => (base, size),
+        OsHwDesc::NotFound => (0, 0)
+    };
 
     let (mut fs, password_opt) = redoxfs(os);
 
@@ -527,7 +536,7 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
     let page_phys = unsafe { paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64) }
         .expect("Failed to set up paging");
 
-    let mut env_size = 4 * KIBI;
+    let mut env_size = 64 * KIBI;
     let env_base = os.alloc_zeroed_page_aligned(env_size);
     if env_base.is_null() {
         panic!("Failed to allocate memory for stack");
@@ -538,6 +547,20 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
             slice: unsafe { slice::from_raw_parts_mut(env_base, env_size) },
             i: 0,
         };
+
+        writeln!(w, "BOOT_MODE={}", os.name()).unwrap();
+
+        match hwdesc {
+            OsHwDesc::Acpi(addr, size) => {
+                writeln!(w, "RSDP_ADDR={:016x}", addr).unwrap();
+                writeln!(w, "RSDP_SIZE={:016x}", size).unwrap();
+            },
+            OsHwDesc::DeviceTree(addr, size) => {
+                writeln!(w, "DTB_ADDR={:016x}", addr).unwrap();
+                writeln!(w, "DTB_SIZE={:016x}", size).unwrap();
+            }
+            OsHwDesc::NotFound => {}
+        }
 
         if let Some(live) = live_opt {
             writeln!(w, "DISK_LIVE_ADDR={:016x}", live.as_ptr() as usize).unwrap();
@@ -617,8 +640,8 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
             stack_size: stack_size as u64,
             env_base: env_base as u64,
             env_size: env_size as u64,
-            acpi_rsdp_base: 0,
-            acpi_rsdp_size: 0,
+            acpi_rsdp_base,
+            acpi_rsdp_size,
             areas_base: unsafe { AREAS.as_ptr() as u64 },
             areas_size: unsafe { (AREAS.len() * mem::size_of::<OsMemoryEntry>()) as u64 },
             bootstrap_base,

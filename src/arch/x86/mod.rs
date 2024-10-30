@@ -6,7 +6,7 @@ pub(crate) mod x32;
 pub(crate) mod x64;
 
 pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
     kernel_phys: u64,
     kernel_size: u64,
 ) -> Option<usize> {
@@ -18,7 +18,7 @@ pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
 }
 
 pub unsafe fn paging_framebuffer<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
     page_phys: usize,
     framebuffer_phys: u64,
     framebuffer_size: u64,

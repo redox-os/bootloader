@@ -1,10 +1,10 @@
 use alloc::alloc::{alloc_zeroed, Layout};
-use core::{convert::TryFrom, slice};
+use core::{convert::TryFrom, ptr, mem, slice};
 use linked_list_allocator::LockedHeap;
 use spin::Mutex;
 
 use crate::logger::LOGGER;
-use crate::os::{Os, OsKey, OsVideoMode};
+use crate::os::{Os, OsHwDesc, OsKey, OsVideoMode};
 use crate::KernelArgs;
 
 use self::disk::DiskBios;
@@ -48,6 +48,53 @@ pub struct OsBios {
     thunk16: extern "C" fn(),
 }
 
+#[allow(dead_code)]
+#[derive(Copy, Clone, Debug)]
+#[repr(C, packed)]
+pub struct Rsdp {
+    signature: [u8; 8],
+    checksum: u8,
+    oemid: [u8; 6],
+    revision: u8,
+    rsdt_address: u32,
+
+}
+
+#[allow(dead_code)]
+#[derive(Copy, Clone, Debug)]
+#[repr(C, packed)]
+pub struct Xsdp {
+    rsdp: Rsdp,
+
+    length: u32,
+    xsdt_address: u64,
+    extended_checksum: u8,
+    reserved: [u8; 3],
+}
+
+unsafe fn search_rsdp(start: usize, end: usize) -> Option<(u64, u64)> {
+    // Align start up to 16 bytes
+    let mut addr = ((start + 15) / 16) * 16;
+    // Search until reading the end of the Rsdp would be past the end of the memory area
+    while addr + mem::size_of::<Rsdp>() <= end {
+        let rsdp = ptr::read(addr as *const Rsdp);
+        if &rsdp.signature == b"RSD PTR " {
+            //TODO: check checksum?
+            if rsdp.revision == 0 {
+                return Some((addr as u64, mem::size_of::<Rsdp>() as u64));
+            } else if rsdp.revision == 2 {
+                let xsdp = ptr::read(addr as *const Xsdp);
+                //TODO: check extended checksum?
+                return Some((addr as u64, xsdp.length as u64));
+            }
+        }
+
+        // Rsdp is always aligned to 16 bytes
+        addr += 16;
+    }
+    None
+}
+
 impl Os<DiskBios, VideoModeIter> for OsBios {
     fn name(&self) -> &str {
         "x86/BIOS"
@@ -79,6 +126,23 @@ impl Os<DiskBios, VideoModeIter> for OsBios {
         //TODO: get block from partition table
         let block = 2 * crate::MIBI as u64 / redoxfs::BLOCK_SIZE;
         redoxfs::FileSystem::open(disk, password_opt, Some(block), false)
+    }
+
+    fn hwdesc(&self) -> OsHwDesc {
+        // See ACPI specification - Finding the RSDP on IA-PC Systems
+        unsafe {
+            let ebda_segment = ptr::read(0x40E as *const u16);
+            let ebda_addr = (ebda_segment as usize) << 4;
+            if let Some((addr, size)) = search_rsdp(ebda_addr, ebda_addr + 1024)
+                .or(search_rsdp(0xE0000, 0xFFFFF))
+            {
+                // Copy to a page
+                let page_aligned = self.alloc_zeroed_page_aligned(size as usize);
+                ptr::copy(addr as *const u8, page_aligned, size as usize);
+                return OsHwDesc::Acpi(page_aligned as u64, size);
+            }
+        }
+        OsHwDesc::NotFound
     }
 
     fn video_outputs(&self) -> usize {

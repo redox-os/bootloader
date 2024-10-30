@@ -11,9 +11,6 @@ use uefi::{
     status::{Result, Status},
 };
 
-pub(crate) static mut RSDP_AREA_BASE: *mut u8 = 0 as *mut u8;
-pub(crate) static mut RSDP_AREA_SIZE: usize = 0;
-
 pub static mut DEV_MEM_AREA: Vec<(usize, usize)> = Vec::new();
 
 pub unsafe fn is_in_dev_mem_region(addr: usize) -> bool {
@@ -72,7 +69,7 @@ unsafe fn get_dev_mem_region(fdt: &Fdt) {
     }
 }
 
-fn parse_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os<D, V>, address: *const u8) {
+fn parse_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &dyn Os<D, V>, address: *const u8) -> Option<(u64, u64)> {
     unsafe {
         if let Ok(fdt) = fdt::Fdt::from_ptr(address) {
             let mut rsdps_area = Vec::new();
@@ -82,11 +79,13 @@ fn parse_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os<D, V>, ad
             let align = 8;
             rsdps_area.extend(core::slice::from_raw_parts(address, length));
             rsdps_area.resize(((rsdps_area.len() + (align - 1)) / align) * align, 0u8);
-            RSDP_AREA_SIZE = rsdps_area.len();
-            RSDP_AREA_BASE = os.alloc_zeroed_page_aligned(RSDP_AREA_SIZE);
-            slice::from_raw_parts_mut(RSDP_AREA_BASE, RSDP_AREA_SIZE).copy_from_slice(&rsdps_area);
+            let size = rsdps_area.len();
+            let base = os.alloc_zeroed_page_aligned(size);
+            slice::from_raw_parts_mut(base, size).copy_from_slice(&rsdps_area);
+            Some((base as u64, size as u64))
         } else {
             println!("Failed to parse DTB");
+            None
         }
     }
 }
@@ -113,14 +112,12 @@ fn find_smbios3_system(address: *const u8) -> Result<dmidecode::System<'static>>
     Err(Status::NOT_FOUND)
 }
 
-pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os<D, V>) {
+pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &dyn Os<D, V>) -> Option<(u64, u64)> {
     let cfg_tables = std::system_table().config_tables();
     for cfg_table in cfg_tables.iter() {
         if cfg_table.VendorGuid == DEVICE_TREE_GUID {
             let addr = cfg_table.VendorTable;
-            println!("DTB: {:X}", addr);
-            parse_dtb(os, addr as *const u8);
-            return;
+            return parse_dtb(os, addr as *const u8);
         }
     }
 
@@ -134,13 +131,12 @@ pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &mut dyn Os
                     _ => None,
                 };
                 if let Some(dtb_addr) = get_dtb_addr {
-                    println!("Fallback DTB: {:X}", dtb_addr);
-                    parse_dtb(os, dtb_addr as *const u8);
+                    return parse_dtb(os, dtb_addr as *const u8);
                 }
-            };
-            return;
+            }
         }
     }
 
     println!("Failed to find DTB");
+    None
 }

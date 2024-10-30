@@ -8,7 +8,6 @@ use x86::{
 use crate::{logger::LOGGER, KernelArgs};
 
 use super::super::{
-    acpi::{find_acpi_table_pointers, RSDP_AREA_BASE, RSDP_AREA_SIZE},
     memory_map::memory_map,
     OsEfi,
 };
@@ -59,14 +58,9 @@ pub fn main() -> Result<()> {
     // Disable cursor
     let _ = (os.st.ConsoleOut.EnableCursor)(os.st.ConsoleOut, false);
 
-    find_acpi_table_pointers(&mut os);
-
-    let (page_phys, func, mut args) = crate::main(&mut os);
+    let (page_phys, func, args) = crate::main(&mut os);
 
     unsafe {
-        args.acpi_rsdp_base = RSDP_AREA_BASE as u64;
-        args.acpi_rsdp_size = RSDP_AREA_SIZE as u64;
-
         kernel_entry(
             page_phys,
             args.stack_base

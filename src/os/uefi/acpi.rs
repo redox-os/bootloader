@@ -3,9 +3,6 @@ use uefi::guid::{ACPI_20_TABLE_GUID, ACPI_TABLE_GUID};
 
 use crate::{Disk, Os, OsVideoMode};
 
-pub(crate) static mut RSDP_AREA_BASE: *mut u8 = 0 as *mut u8;
-pub(crate) static mut RSDP_AREA_SIZE: usize = 0;
-
 struct Invalid;
 
 fn validate_rsdp(address: usize, _v2: bool) -> core::result::Result<usize, Invalid> {
@@ -66,8 +63,8 @@ fn validate_rsdp(address: usize, _v2: bool) -> core::result::Result<usize, Inval
 }
 
 pub(crate) fn find_acpi_table_pointers<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
-) {
+    os: &dyn Os<D, V>,
+) -> Option<(u64, u64)> {
     let cfg_tables = std::system_table().config_tables();
     let mut acpi = None;
     let mut acpi2 = None;
@@ -104,9 +101,12 @@ pub(crate) fn find_acpi_table_pointers<D: Disk, V: Iterator<Item = OsVideoMode>>
     if !rsdp_area.is_empty() {
         unsafe {
             // Copy to page aligned area
-            RSDP_AREA_SIZE = rsdp_area.len();
-            RSDP_AREA_BASE = os.alloc_zeroed_page_aligned(RSDP_AREA_SIZE);
-            slice::from_raw_parts_mut(RSDP_AREA_BASE, RSDP_AREA_SIZE).copy_from_slice(&rsdp_area);
+            let size = rsdp_area.len();
+            let base = os.alloc_zeroed_page_aligned(size);
+            slice::from_raw_parts_mut(base, size).copy_from_slice(&rsdp_area);
+            Some((base as u64, size as u64))
         }
+    } else {
+        None
     }
 }

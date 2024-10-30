@@ -4,12 +4,11 @@ use uefi::status::Result;
 use crate::{arch::{ENTRY_ADDRESS_MASK, PAGE_ENTRIES, PHYS_OFFSET, PF_PRESENT, PF_TABLE}, logger::LOGGER, KernelArgs};
 
 use super::super::{
-    dtb::{find_dtb, RSDP_AREA_BASE, RSDP_AREA_SIZE},
     memory_map::memory_map,
     OsEfi,
 };
 
-unsafe fn dump_page_tables(table_phys: u64, table_virt: usize, table_level: usize) {
+unsafe fn dump_page_tables(table_phys: u64, table_virt: u64, table_level: u64) {
     let entries = slice::from_raw_parts(table_phys as *const u64, PAGE_ENTRIES);
     for (i, entry) in entries.iter().enumerate() {
         let phys = entry & ENTRY_ADDRESS_MASK;
@@ -17,13 +16,13 @@ unsafe fn dump_page_tables(table_phys: u64, table_virt: usize, table_level: usiz
         if flags & PF_PRESENT == 0 {
             continue;
         }
-        let mut shift = 39;
+        let mut shift = 39u64;
         for _ in 0..table_level {
             shift -= 9;
             print!("\t");
         }
-        let virt = table_virt + i << shift;
-        println!("virt {:#x}: phys {:#x} flags {:#x}", virt, phys, flags);
+        let virt = table_virt + (i as u64) << shift;
+        println!("index {} virt {:#x}: phys {:#x} flags {:#x}", i, virt, phys, flags);
         if table_level < 3 && flags & PF_TABLE == PF_TABLE {
             dump_page_tables(phys, virt, table_level + 1);
         }
@@ -196,15 +195,24 @@ pub fn main() -> Result<()> {
     // Disable cursor
     let _ = (os.st.ConsoleOut.EnableCursor)(os.st.ConsoleOut, false);
 
-    find_dtb(&mut os);
+    let currentel: u64;
+    unsafe {
+        asm!(
+            "mrs {0}, currentel", // Read current exception level
+            out(reg) currentel,
+        );
+    }
+    log::info!("Currently in EL{}", (currentel >> 2) & 3);
 
-    let (page_phys, func, mut args) = crate::main(&mut os);
+    let (page_phys, func, args) = crate::main(&mut os);
 
     unsafe {
-        args.acpi_rsdp_base = RSDP_AREA_BASE as u64;
-        args.acpi_rsdp_size = RSDP_AREA_SIZE as u64;
-
         let stack = args.stack_base + args.stack_size + PHYS_OFFSET;
+
+        // dump_page_tables(page_phys as _, 0, 0);
+
+        println!("kernel_entry({:#x}, {:#x}, {:#x}, {:p})", page_phys, stack, func, &args);
+        println!("{:#x?}", args);
 
         kernel_entry(
             page_phys,

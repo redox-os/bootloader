@@ -14,7 +14,7 @@ const PHYS_MASK: usize = (1usize << 44) - 1;
 pub(crate) const PHYS_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
 unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
 ) -> Option<&'static mut [u64]> {
     let ptr = os.alloc_zeroed_page_aligned(PAGE_SIZE);
     if !ptr.is_null() {
@@ -33,7 +33,7 @@ const VALID: u64 = 1;
 const RWX: u64 = 7 << 1;
 
 unsafe fn get_table<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
     parent: &mut [u64],
     index: usize,
 ) -> Option<&'static mut [u64]> {
@@ -50,7 +50,7 @@ unsafe fn get_table<D: Disk, V: Iterator<Item = OsVideoMode>>(
 }
 
 pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
     kernel_phys: u64,
     kernel_size: u64,
 ) -> Option<usize> {
@@ -109,7 +109,7 @@ pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
 }
 
 pub unsafe fn paging_physmem<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
     page_phys: usize,
     phys: u64,
     size: u64,

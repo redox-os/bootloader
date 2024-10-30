@@ -11,7 +11,7 @@ use uefi::{
     Handle,
 };
 
-use crate::os::{Os, OsKey, OsVideoMode};
+use crate::os::{Os, OsHwDesc, OsKey, OsVideoMode};
 
 use self::{
     device::{device_path_to_string, disk_device_priority},
@@ -206,6 +206,22 @@ impl Os<DiskEfi, VideoModeIter> for OsEfi {
 
         log::warn!("No RedoxFS partitions found");
         Err(syscall::Error::new(syscall::ENOENT))
+    }
+
+    fn hwdesc(&self) -> OsHwDesc {
+        //TODO: if both DTB and ACPI are found, we should probably let the OS choose what to use?
+
+        // For now we will prefer DTB on platforms that have it
+        #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
+        if let Some((addr, size)) = dtb::find_dtb(self) {
+            return OsHwDesc::DeviceTree(addr, size);
+        }
+
+        if let Some((addr, size)) = acpi::find_acpi_table_pointers(self) {
+            return OsHwDesc::Acpi(addr, size);
+        }
+
+        OsHwDesc::NotFound
     }
 
     fn video_outputs(&self) -> usize {

@@ -16,6 +16,13 @@ pub use self::uefi::*;
 mod uefi;
 
 #[derive(Clone, Copy, Debug)]
+pub enum OsHwDesc {
+    Acpi(u64, u64),
+    DeviceTree(u64, u64),
+    NotFound,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum OsKey {
     Left,
     Right,
@@ -65,6 +72,8 @@ pub trait Os<D: Disk, V: Iterator<Item = OsVideoMode>> {
     fn page_size(&self) -> usize;
 
     fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<D>>;
+
+    fn hwdesc(&self) -> OsHwDesc;
 
     fn video_outputs(&self) -> usize;
     fn video_modes(&self, output_i: usize) -> V;

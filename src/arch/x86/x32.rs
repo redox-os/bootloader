@@ -8,7 +8,7 @@ const PAGE_SIZE: usize = 4096;
 pub(crate) const PHYS_OFFSET: u32 = 0x8000_0000;
 
 unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
 ) -> Option<&'static mut [u32]> {
     let ptr = os.alloc_zeroed_page_aligned(PAGE_SIZE);
     if !ptr.is_null() {
@@ -24,7 +24,7 @@ unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
 }
 
 pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
     kernel_phys: u64,
     kernel_size: u64,
 ) -> Option<usize> {
@@ -58,7 +58,7 @@ pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
 }
 
 pub unsafe fn paging_framebuffer<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
     page_phys: usize,
     framebuffer_phys: u64,
     framebuffer_size: u64,

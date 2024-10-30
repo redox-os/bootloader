@@ -18,7 +18,7 @@ const PAGE_SIZE: usize = 4096;
 pub(crate) const PHYS_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
 unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
 ) -> Option<&'static mut [u64]> {
     let ptr = os.alloc_zeroed_page_aligned(PAGE_SIZE);
     if !ptr.is_null() {
@@ -34,7 +34,7 @@ unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
 }
 
 pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
     kernel_phys: u64,
     kernel_size: u64,
 ) -> Option<usize> {
@@ -53,7 +53,7 @@ pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
         for l1_i in 0..8 {
             let addr = l1_i as u64 * 0x4000_0000;
             //TODO: is PF_RAM okay?
-            l1[l1_i] = addr | PF_ACCESS | PF_RAM | PF_PRESENT;
+            l1[l1_i] = addr | PF_ACCESS | PF_DEV | PF_PRESENT;
         }
     }
 
@@ -94,7 +94,7 @@ pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
 }
 
 pub unsafe fn paging_framebuffer<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &mut dyn Os<D, V>,
+    os: &dyn Os<D, V>,
     page_phys: usize,
     framebuffer_phys: u64,
     framebuffer_size: u64,
