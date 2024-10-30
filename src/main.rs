@@ -427,9 +427,7 @@ fn elf_entry(data: &[u8]) -> (u64, bool) {
     }
 }
 
-fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &dyn Os<D, V>,
-) -> (usize, u64, KernelArgs) {
+fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &dyn Os<D, V>) -> (usize, u64, KernelArgs) {
     println!(
         "Redox OS Bootloader {} on {}",
         env!("CARGO_PKG_VERSION"),
@@ -441,7 +439,7 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
     let (acpi_rsdp_base, acpi_rsdp_size) = match hwdesc {
         OsHwDesc::Acpi(base, size) => (base, size),
         OsHwDesc::DeviceTree(base, size) => (base, size),
-        OsHwDesc::NotFound => (0, 0)
+        OsHwDesc::NotFound => (0, 0),
     };
 
     let (mut fs, password_opt) = redoxfs(os);
@@ -554,7 +552,7 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(
             OsHwDesc::Acpi(addr, size) => {
                 writeln!(w, "RSDP_ADDR={:016x}", addr).unwrap();
                 writeln!(w, "RSDP_SIZE={:016x}", size).unwrap();
-            },
+            }
             OsHwDesc::DeviceTree(addr, size) => {
                 writeln!(w, "DTB_ADDR={:016x}", addr).unwrap();
                 writeln!(w, "DTB_SIZE={:016x}", size).unwrap();

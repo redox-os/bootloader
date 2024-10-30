@@ -1,12 +1,13 @@
 use core::{arch::asm, fmt::Write, mem, slice};
 use uefi::status::Result;
 
-use crate::{arch::{ENTRY_ADDRESS_MASK, PAGE_ENTRIES, PHYS_OFFSET, PF_PRESENT, PF_TABLE}, logger::LOGGER, KernelArgs};
-
-use super::super::{
-    memory_map::memory_map,
-    OsEfi,
+use crate::{
+    arch::{ENTRY_ADDRESS_MASK, PAGE_ENTRIES, PF_PRESENT, PF_TABLE, PHYS_OFFSET},
+    logger::LOGGER,
+    KernelArgs,
 };
+
+use super::super::{memory_map::memory_map, OsEfi};
 
 unsafe fn dump_page_tables(table_phys: u64, table_virt: u64, table_level: u64) {
     let entries = slice::from_raw_parts(table_phys as *const u64, PAGE_ENTRIES);
@@ -22,7 +23,10 @@ unsafe fn dump_page_tables(table_phys: u64, table_virt: u64, table_level: u64) {
             print!("\t");
         }
         let virt = table_virt + (i as u64) << shift;
-        println!("index {} virt {:#x}: phys {:#x} flags {:#x}", i, virt, phys, flags);
+        println!(
+            "index {} virt {:#x}: phys {:#x} flags {:#x}",
+            i, virt, phys, flags
+        );
         if table_level < 3 && flags & PF_TABLE == PF_TABLE {
             dump_page_tables(phys, virt, table_level + 1);
         }
@@ -211,15 +215,13 @@ pub fn main() -> Result<()> {
 
         // dump_page_tables(page_phys as _, 0, 0);
 
-        println!("kernel_entry({:#x}, {:#x}, {:#x}, {:p})", page_phys, stack, func, &args);
+        println!(
+            "kernel_entry({:#x}, {:#x}, {:#x}, {:p})",
+            page_phys, stack, func, &args
+        );
         println!("{:#x?}", args);
 
-        kernel_entry(
-            page_phys,
-            stack,
-            func,
-            &args,
-        );
+        kernel_entry(page_phys, stack, func, &args);
     }
 }
 

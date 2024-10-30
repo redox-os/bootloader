@@ -26,8 +26,12 @@ pub unsafe fn is_in_dev_mem_region(addr: usize) -> bool {
 }
 
 unsafe fn get_dev_mem_region(fdt: &Fdt) {
-    let Some(soc) = fdt.find_node("/soc") else { return };
-    let Some(ranges) = soc.property("ranges") else { return };
+    let Some(soc) = fdt.find_node("/soc") else {
+        return;
+    };
+    let Some(ranges) = soc.property("ranges") else {
+        return;
+    };
     let cell_sizes = soc.cell_sizes();
     let chunk_size = (cell_sizes.address_cells * 2 + cell_sizes.size_cells) * 4;
     for chunk in ranges.value.chunks(chunk_size) {
@@ -69,7 +73,10 @@ unsafe fn get_dev_mem_region(fdt: &Fdt) {
     }
 }
 
-fn parse_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &dyn Os<D, V>, address: *const u8) -> Option<(u64, u64)> {
+fn parse_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &dyn Os<D, V>,
+    address: *const u8,
+) -> Option<(u64, u64)> {
     unsafe {
         if let Ok(fdt) = fdt::Fdt::from_ptr(address) {
             let mut rsdps_area = Vec::new();
@@ -112,7 +119,9 @@ fn find_smbios3_system(address: *const u8) -> Result<dmidecode::System<'static>>
     Err(Status::NOT_FOUND)
 }
 
-pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &dyn Os<D, V>) -> Option<(u64, u64)> {
+pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(
+    os: &dyn Os<D, V>,
+) -> Option<(u64, u64)> {
     let cfg_tables = std::system_table().config_tables();
     for cfg_table in cfg_tables.iter() {
         if cfg_table.VendorGuid == DEVICE_TREE_GUID {

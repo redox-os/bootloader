@@ -1,5 +1,5 @@
 use alloc::alloc::{alloc_zeroed, Layout};
-use core::{convert::TryFrom, ptr, mem, slice};
+use core::{convert::TryFrom, mem, ptr, slice};
 use linked_list_allocator::LockedHeap;
 use spin::Mutex;
 
@@ -57,7 +57,6 @@ pub struct Rsdp {
     oemid: [u8; 6],
     revision: u8,
     rsdt_address: u32,
-
 }
 
 #[allow(dead_code)]
@@ -133,8 +132,8 @@ impl Os<DiskBios, VideoModeIter> for OsBios {
         unsafe {
             let ebda_segment = ptr::read(0x40E as *const u16);
             let ebda_addr = (ebda_segment as usize) << 4;
-            if let Some((addr, size)) = search_rsdp(ebda_addr, ebda_addr + 1024)
-                .or(search_rsdp(0xE0000, 0xFFFFF))
+            if let Some((addr, size)) =
+                search_rsdp(ebda_addr, ebda_addr + 1024).or(search_rsdp(0xE0000, 0xFFFFF))
             {
                 // Copy to a page
                 let page_aligned = self.alloc_zeroed_page_aligned(size as usize);

@@ -7,10 +7,7 @@ use x86::{
 
 use crate::{logger::LOGGER, KernelArgs};
 
-use super::super::{
-    memory_map::memory_map,
-    OsEfi,
-};
+use super::super::{memory_map::memory_map, OsEfi};
 
 unsafe extern "C" fn kernel_entry(
     page_phys: usize,
