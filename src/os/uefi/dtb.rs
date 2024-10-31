@@ -130,6 +130,7 @@ pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(
         }
     }
 
+    /* This hack is no longer needed, but can be re-enabled for testing
     #[cfg(target_arch = "aarch64")]
     for cfg_table in cfg_tables.iter() {
         if cfg_table.VendorGuid == SMBIOS3_TABLE_GUID {
@@ -145,7 +146,7 @@ pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(
             }
         }
     }
+    */
 
-    println!("Failed to find DTB");
     None
 }
