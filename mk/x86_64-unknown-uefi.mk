@@ -38,7 +38,7 @@ $(BUILD)/esp.bin: $(BUILD)/bootloader.efi
 	mmd -i "$@.partial" efi
 	mmd -i "$@.partial" efi/boot
 	mcopy -i "$@.partial" "$<" ::efi/boot/bootx64.efi
-	mv $"@.partial" "$@"
+	mv "$@.partial" "$@"
 
 $(BUILD)/harddrive.bin: $(BUILD)/esp.bin $(BUILD)/filesystem.bin
 	rm -f "$@.partial"
