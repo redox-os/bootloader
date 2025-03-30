@@ -546,8 +546,6 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &dyn Os<D, V>) -> (usize, 
             i: 0,
         };
 
-        writeln!(w, "BOOT_MODE={}", os.name()).unwrap();
-
         match hwdesc {
             OsHwDesc::Acpi(addr, size) => {
                 writeln!(w, "RSDP_ADDR={:016x}", addr).unwrap();
