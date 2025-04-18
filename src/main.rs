@@ -4,12 +4,12 @@
 #![feature(lang_items)]
 #![allow(internal_features)]
 #![feature(let_chains)]
-#![cfg_attr(target_os = "uefi", no_main, feature(try_trait_v2))]
+#![cfg_attr(any(target_arch = "riscv64", target_os = "uefi"), no_main, feature(try_trait_v2))]
 #![cfg_attr(target_arch = "riscv64", feature(naked_functions))]
 
 extern crate alloc;
 
-#[cfg(target_os = "uefi")]
+#[cfg(any(target_arch = "riscv64", target_os = "uefi"))]
 #[macro_use]
 extern crate uefi_std as std;
 

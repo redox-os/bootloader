@@ -30,6 +30,11 @@ features = ["force-soft", "log"]
 redox_uefi = { git = "https://gitlab.redox-os.org/redox-os/uefi.git" }
 redox_uefi_std = { git = "https://gitlab.redox-os.org/redox-os/uefi.git" }
 
+#TODO: riscv cannot use target_os = "uefi" at this time
+[target.'cfg(target_arch = "riscv64")'.dependencies]
+redox_uefi = { git = "https://gitlab.redox-os.org/redox-os/uefi.git" }
+redox_uefi_std = { git = "https://gitlab.redox-os.org/redox-os/uefi.git" }
+
 [target."aarch64-unknown-uefi".dependencies]
 dmidecode = "0.8.0"
 
