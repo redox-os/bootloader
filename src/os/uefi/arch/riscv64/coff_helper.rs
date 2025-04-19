@@ -1,4 +1,4 @@
-use core::arch::{asm, global_asm};
+use core::arch::{global_asm, naked_asm};
 
 /// Unfortunately this can't be written in Rust because it might use some not-yet
 /// relocated data such as jump tables
@@ -6,7 +6,7 @@ use core::arch::{asm, global_asm};
 #[no_mangle]
 extern "C" fn coff_relocate(dynentry: *const u8, base: usize) -> usize {
     unsafe {
-        asm!(
+        naked_asm!(
             "
     mv   t4, zero // RELA
     li   t5, -1   // RELASZ
@@ -39,6 +39,9 @@ extern "C" fn coff_relocate(dynentry: *const u8, base: usize) -> usize {
 2:  addi t0, t0, -2
     bltz t0, 3f     // fail on DT_RPATH
     beqz t0, 5b     // skip SYMBOLIC=16
+    li   t1, 0x6ffffef5-16
+    sub  t0, t0, t1
+    beqz t0, 5b     // skip DT_GNU_HASH=0x6ffffef5
     nop
 3:  // error
     mv   a0, zero
@@ -66,8 +69,7 @@ extern "C" fn coff_relocate(dynentry: *const u8, base: usize) -> usize {
     add  t2, t2, a1  // RELATIVE: *value = base + addend
     sd   t2, 0(t0)
     j    7b
-    ",
-            options(noreturn)
+    "
         )
     }
 }

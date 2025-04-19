@@ -12,7 +12,7 @@
   "llvm-abiname": "lp64d",
   "features": "+m,+a,+f,+d,+c",
   "llvm-target": "riscv64-unknown-none-elf",
-  "os": "uefi",
+  "os": "none",
   "metadata": {
     "description": null,
     "host_tools": null,
