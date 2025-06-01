@@ -63,7 +63,7 @@ pub fn main() -> Result<()> {
             args.stack_base
                 + args.stack_size
                 + if crate::KERNEL_64BIT {
-                    crate::arch::x64::PHYS_OFFSET as u64
+                    crate::arch::x64::PHYS_OFFSET
                 } else {
                     crate::arch::x32::PHYS_OFFSET as u64
                 },

@@ -42,7 +42,7 @@ pub(crate) fn alloc_zeroed_page_aligned(size: usize) -> *mut u8 {
     assert!(size != 0);
 
     let page_size = page_size();
-    let pages = (size + page_size - 1) / page_size;
+    let pages = size.div_ceil(page_size);
 
     let ptr = {
         // Max address mapped by src/arch paging code (8 GiB)

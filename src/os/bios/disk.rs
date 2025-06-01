@@ -112,14 +112,14 @@ impl Disk for DiskBios {
 
             if let Some((_, h_max, s_max)) = self.chs_opt {
                 let s = (dap.address % s_max as u64) + 1;
-                assert!(s <= 63, "invalid sector {}", s);
+                assert!(s <= 63, "invalid sector {s}");
 
                 let tmp = dap.address / s_max as u64;
                 let h = tmp % h_max as u64;
-                assert!(h <= 255, "invalid head {}", h);
+                assert!(h <= 255, "invalid head {h}");
 
                 let c = tmp / h_max as u64;
-                assert!(c <= 1023, "invalid cylinder {}", c);
+                assert!(c <= 1023, "invalid cylinder {c}");
 
                 let mut data = ThunkData::new();
                 data.eax = 0x0200 | (dap.sectors as u32);

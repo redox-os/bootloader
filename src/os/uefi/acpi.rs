@@ -103,7 +103,7 @@ pub(crate) fn find_acpi_table_pointers<D: Disk, V: Iterator<Item = OsVideoMode>>
             // Copy to page aligned area
             let size = rsdp_area.len();
             let base = os.alloc_zeroed_page_aligned(size);
-            slice::from_raw_parts_mut(base, size).copy_from_slice(&rsdp_area);
+            slice::from_raw_parts_mut(base, size).copy_from_slice(rsdp_area);
             Some((base as u64, size as u64))
         }
     } else {

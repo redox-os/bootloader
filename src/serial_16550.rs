@@ -75,14 +75,14 @@ where
         unsafe {
             //TODO: Cleanup
             // FIXME: Fix UB if unaligned
-            (&mut *addr_of_mut!(self.int_en)).write(0x00.into());
-            (&mut *addr_of_mut!(self.line_ctrl)).write(0x80.into());
-            (&mut *addr_of_mut!(self.data)).write(0x01.into());
-            (&mut *addr_of_mut!(self.int_en)).write(0x00.into());
-            (&mut *addr_of_mut!(self.line_ctrl)).write(0x03.into());
-            (&mut *addr_of_mut!(self.fifo_ctrl)).write(0xC7.into());
-            (&mut *addr_of_mut!(self.modem_ctrl)).write(0x0B.into());
-            (&mut *addr_of_mut!(self.int_en)).write(0x01.into());
+            (*addr_of_mut!(self.int_en)).write(0x00.into());
+            (*addr_of_mut!(self.line_ctrl)).write(0x80.into());
+            (*addr_of_mut!(self.data)).write(0x01.into());
+            (*addr_of_mut!(self.int_en)).write(0x00.into());
+            (*addr_of_mut!(self.line_ctrl)).write(0x03.into());
+            (*addr_of_mut!(self.fifo_ctrl)).write(0xC7.into());
+            (*addr_of_mut!(self.modem_ctrl)).write(0x0B.into());
+            (*addr_of_mut!(self.int_en)).write(0x01.into());
         }
     }
 

@@ -120,12 +120,11 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
     {
         let mut i = 0;
         while i < devices.len() {
-            match device_path_relation(devices[i].device_path.0, esp_device_path.0) {
-                DevicePathRelation::Parent(0) => {
-                    boot_disks.push(devices.remove(i));
-                    continue;
-                }
-                _ => (),
+            if let DevicePathRelation::Parent(0) =
+                device_path_relation(devices[i].device_path.0, esp_device_path.0)
+            {
+                boot_disks.push(devices.remove(i));
+                continue;
             }
 
             i += 1;
@@ -139,12 +138,11 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
         while i < devices.len() {
             // Only prioritize non-ESP devices
             if devices[i].handle != esp_handle {
-                match device_path_relation(devices[i].device_path.0, boot_disk.device_path.0) {
-                    DevicePathRelation::Child(0) => {
-                        priority.push(devices.remove(i));
-                        continue;
-                    }
-                    _ => (),
+                if let DevicePathRelation::Child(0) =
+                    device_path_relation(devices[i].device_path.0, boot_disk.device_path.0)
+                {
+                    priority.push(devices.remove(i));
+                    continue;
                 }
             }
 
@@ -194,9 +192,9 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                         DevicePathHardwareType::Pci if node_data.len() == 2 => {
                             let func = node_data[0];
                             let dev = node_data[1];
-                            write!(s, "Pci(0x{:X},0x{:X})", dev, func)
+                            write!(s, "Pci(0x{dev:X},0x{func:X})")
                         }
-                        _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
+                        _ => write!(s, "{path_type:?} {sub_type:?} {node_data:X?}"),
                     },
                     Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
                 },
@@ -208,10 +206,10 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                             if hid & 0xFFFF == 0x41D0 {
                                 write!(s, "Acpi(PNP{:04X},0x{:X})", hid >> 16, uid)
                             } else {
-                                write!(s, "Acpi(0x{:08X},0x{:X})", hid, uid)
+                                write!(s, "Acpi(0x{hid:08X},0x{uid:X})")
                             }
                         }
-                        _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
+                        _ => write!(s, "{path_type:?} {sub_type:?} {node_data:X?}"),
                     },
                     Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
                 },
@@ -223,25 +221,24 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                                 let multiplier_port = read_u16(2);
                                 let logical_unit = read_u16(4);
                                 if multiplier_port & (1 << 15) != 0 {
-                                    write!(s, "Sata(0x{:X},0x{:X})", hba_port, logical_unit)
+                                    write!(s, "Sata(0x{hba_port:X},0x{logical_unit:X})")
                                 } else {
                                     write!(
                                         s,
-                                        "Sata(0x{:X},0x{:X},0x{:X})",
-                                        hba_port, multiplier_port, logical_unit
+                                        "Sata(0x{hba_port:X},0x{multiplier_port:X},0x{logical_unit:X})"
                                     )
                                 }
                             }
                             DevicePathMessagingType::Usb if node_data.len() == 2 => {
                                 let port = node_data[0];
                                 let iface = node_data[1];
-                                write!(s, "Usb(0x{:X},0x{:X})", port, iface)
+                                write!(s, "Usb(0x{port:X},0x{iface:X})")
                             }
                             DevicePathMessagingType::Nvme if node_data.len() == 12 => {
                                 let nsid = read_u32(0);
                                 let eui = &node_data[4..];
-                                if eui == &[0, 0, 0, 0, 0, 0, 0, 0] {
-                                    write!(s, "NVMe(0x{:X})", nsid)
+                                if eui == [0, 0, 0, 0, 0, 0, 0, 0] {
+                                    write!(s, "NVMe(0x{nsid:X})")
                                 } else {
                                     write!(
                                     s,
@@ -258,7 +255,7 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                                 )
                                 }
                             }
-                            _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
+                            _ => write!(s, "{path_type:?} {sub_type:?} {node_data:X?}"),
                         },
                         Err(()) => {
                             write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data)
@@ -283,7 +280,7 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                                             ptr::read(harddrive.partition_signature.as_ptr()
                                                 as *const u32)
                                         };
-                                        write!(s, "HD(0x{:X},MBR,0x{:X})", partition_number, id)
+                                        write!(s, "HD(0x{partition_number:X},MBR,0x{id:X})")
                                     }
                                     2 => {
                                         let guid = unsafe {
@@ -328,21 +325,17 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                                 }
                                 Ok(())
                             }
-                            _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
+                            _ => write!(s, "{path_type:?} {sub_type:?} {node_data:X?}"),
                         }
                     }
                     Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
                 },
                 DevicePathType::Bbs => match DevicePathBbsType::try_from(node.SubType) {
-                    Ok(sub_type) => match sub_type {
-                        _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
-                    },
+                    Ok(sub_type) => write!(s, "{path_type:?} {sub_type:?} {node_data:X?}"),
                     Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
                 },
                 DevicePathType::End => match DevicePathEndType::try_from(node.SubType) {
-                    Ok(sub_type) => match sub_type {
-                        _ => write!(s, "{:?} {:?} {:X?}", path_type, sub_type, node_data),
-                    },
+                    Ok(sub_type) => write!(s, "{path_type:?} {sub_type:?} {node_data:X?}"),
                     Err(()) => write!(s, "{:?} 0x{:02X} {:X?}", path_type, node.SubType, node_data),
                 },
             },

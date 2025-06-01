@@ -4,7 +4,11 @@
 #![feature(lang_items)]
 #![allow(internal_features)]
 #![feature(let_chains)]
-#![cfg_attr(any(target_arch = "riscv64", target_os = "uefi"), no_main, feature(try_trait_v2))]
+#![cfg_attr(
+    any(target_arch = "riscv64", target_os = "uefi"),
+    no_main,
+    feature(try_trait_v2)
+)]
 #![cfg_attr(target_arch = "riscv64", feature(naked_functions))]
 
 extern crate alloc;
@@ -144,7 +148,7 @@ fn select_mode<D: Disk, V: Iterator<Item = OsVideoMode>>(
 
     // Set selected based on best resolution
     print!("Output {}", output_i);
-    let mut selected = modes.get(0).map_or(0, |x| x.0.id);
+    let mut selected = modes.first().map_or(0, |x| x.0.id);
     if let Some((best_width, best_height)) = os.best_resolution(output_i) {
         print!(", best resolution: {}x{}", best_width, best_height);
         for (mode, _text) in modes.iter() {
@@ -199,7 +203,7 @@ fn select_mode<D: Disk, V: Iterator<Item = OsVideoMode>>(
                 if let Some(mut mode_i) = modes.iter().position(|x| x.0.id == selected) {
                     mode_i += rows;
                     if mode_i >= modes.len() {
-                        mode_i = mode_i % rows;
+                        mode_i %= rows;
                     }
                     if let Some(new) = modes.get(mode_i) {
                         selected = new.0.id;
@@ -548,12 +552,12 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &dyn Os<D, V>) -> (usize, 
 
         match hwdesc {
             OsHwDesc::Acpi(addr, size) => {
-                writeln!(w, "RSDP_ADDR={:016x}", addr).unwrap();
-                writeln!(w, "RSDP_SIZE={:016x}", size).unwrap();
+                writeln!(w, "RSDP_ADDR={addr:016x}").unwrap();
+                writeln!(w, "RSDP_SIZE={size:016x}").unwrap();
             }
             OsHwDesc::DeviceTree(addr, size) => {
-                writeln!(w, "DTB_ADDR={:016x}", addr).unwrap();
-                writeln!(w, "DTB_SIZE={:016x}", size).unwrap();
+                writeln!(w, "DTB_ADDR={addr:016x}").unwrap();
+                writeln!(w, "DTB_SIZE={size:016x}").unwrap();
             }
             OsHwDesc::NotFound => {}
         }
@@ -608,7 +612,7 @@ fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &dyn Os<D, V>) -> (usize, 
                     .expect("Failed to map framebuffer");
 
                     writeln!(w, "FRAMEBUFFER_ADDR={:016x}", mode.base).unwrap();
-                    writeln!(w, "FRAMEBUFFER_VIRT={:016x}", virt).unwrap();
+                    writeln!(w, "FRAMEBUFFER_VIRT={virt:016x}").unwrap();
                     writeln!(w, "FRAMEBUFFER_WIDTH={:016x}", mode.width).unwrap();
                     writeln!(w, "FRAMEBUFFER_HEIGHT={:016x}", mode.height).unwrap();
                     writeln!(w, "FRAMEBUFFER_STRIDE={:016x}", mode.stride).unwrap();
