@@ -1,9 +1,38 @@
+use alloc::vec::Vec;
 use core::slice;
 use redoxfs::{Disk, BLOCK_SIZE, RECORD_SIZE};
 use std::proto::Protocol;
 use syscall::{Error, Result, EINVAL, EIO};
 use uefi::block_io::BlockIo as UefiBlockIo;
 use uefi::guid::{Guid, BLOCK_IO_GUID};
+
+pub enum DiskOrFileEfi {
+    Disk(DiskEfi),
+    File(Vec<u8>),
+}
+
+impl redoxfs::Disk for DiskOrFileEfi {
+    unsafe fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> syscall::Result<usize> {
+        match self {
+            DiskOrFileEfi::Disk(disk_efi) => disk_efi.read_at(block, buffer),
+            DiskOrFileEfi::File(data) => {
+                buffer.copy_from_slice(
+                    &data[(block * redoxfs::BLOCK_SIZE) as usize
+                        ..(block * redoxfs::BLOCK_SIZE) as usize + buffer.len()],
+                );
+                Ok(buffer.len())
+            }
+        }
+    }
+
+    unsafe fn write_at(&mut self, _block: u64, _buffer: &[u8]) -> syscall::Result<usize> {
+        unreachable!()
+    }
+
+    fn size(&mut self) -> syscall::Result<u64> {
+        unreachable!()
+    }
+}
 
 pub struct DiskEfi(pub &'static mut UefiBlockIo, &'static mut [u8]);
 

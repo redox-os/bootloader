@@ -1,4 +1,4 @@
-use alloc::{string::String, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
 use core::{fmt::Write, mem, ptr, slice};
 use uefi::{
     device::{
@@ -6,11 +6,12 @@ use uefi::{
         DevicePathHardwareType, DevicePathMediaType, DevicePathMessagingType, DevicePathType,
     },
     guid::Guid,
+    status::Status,
     Handle,
 };
-use uefi_std::{loaded_image::LoadedImage, proto::Protocol};
+use uefi_std::{fs::FileSystem, loaded_image::LoadedImage, proto::Protocol};
 
-use super::disk::DiskEfi;
+use super::disk::{DiskEfi, DiskOrFileEfi};
 
 #[derive(Debug)]
 enum DevicePathRelation {
@@ -45,10 +46,60 @@ fn device_path_relation(a_path: &DevicePath, b_path: &DevicePath) -> DevicePathR
     }
 }
 
+fn esp_live_image(esp_handle: Handle, esp_device_path: &DevicePath) -> Option<Vec<u8>> {
+    let mut esp_fs = match FileSystem::handle_protocol(esp_handle) {
+        Ok(esp_fs) => esp_fs,
+        Err(err) => {
+            log::warn!("Failed to find SimpleFileSystem protocol: {:?}", err);
+            return None;
+        }
+    };
+
+    let mut root = match esp_fs.root() {
+        Ok(root) => root,
+        Err(err) => {
+            log::warn!("Failed to open ESP filesystem: {:?}", err);
+            return None;
+        }
+    };
+
+    const fn as_utf16_str<const N: usize>(s: [u8; N]) -> [u16; N] {
+        let mut ret = [0; N];
+        let mut i = 0;
+        while i < N {
+            ret[i] = s[i] as u16;
+            i += 1;
+        }
+        ret
+    }
+
+    let filename = const { &as_utf16_str(*b"redox-live.img\0") };
+    let mut live_image = match root.open(filename) {
+        Ok(live_image) => live_image,
+        Err(Status::NOT_FOUND) => return None,
+        Err(err) => {
+            log::warn!(
+                "Failed to open {}\\redox-live.img: {:?}",
+                device_path_to_string(esp_device_path),
+                err
+            );
+            return None;
+        }
+    };
+
+    let mut buffer = Vec::new();
+
+    live_image.read_to_end(&mut buffer).unwrap();
+
+    Some(buffer)
+}
+
 pub struct DiskDevice {
     pub handle: Handle,
-    pub disk: DiskEfi,
+    pub disk: DiskOrFileEfi,
+    pub partition_offset: u64,
     pub device_path: DevicePathProtocol,
+    pub file_path: Option<&'static str>,
 }
 
 pub fn disk_device_priority() -> Vec<DiskDevice> {
@@ -74,6 +125,25 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
         }
     };
 
+    if cfg!(feature = "live") {
+        // First try to get a live image from redox-live.img. This is required to support netbooting.
+        if let Some(buffer) = esp_live_image(esp_handle, esp_device_path.0) {
+            return vec![DiskDevice {
+                handle: esp_handle,
+                // Support both a copy of livedisk.iso and a standalone redoxfs partition
+                partition_offset: if &buffer[512..520] == b"EFI PART" {
+                    //TODO: get block from partition table
+                    2 * crate::MIBI as u64
+                } else {
+                    0
+                },
+                disk: DiskOrFileEfi::File(buffer),
+                device_path: esp_device_path,
+                file_path: Some("redox-live.img"),
+            }];
+        }
+    }
+
     // Get all block I/O handles along with their block I/O implementations and device paths
     let handles = match DiskEfi::locate_handle() {
         Ok(ok) => ok,
@@ -96,6 +166,10 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
             }
         };
 
+        if !disk.0.Media.MediaPresent {
+            continue;
+        }
+
         let device_path = match DevicePathProtocol::handle_protocol(handle) {
             Ok(ok) => ok,
             Err(err) => {
@@ -110,8 +184,15 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
 
         devices.push(DiskDevice {
             handle,
-            disk,
+            partition_offset: if disk.0.Media.LogicalPartition {
+                0
+            } else {
+                //TODO: get block from partition table
+                2 * crate::MIBI as u64
+            },
+            disk: DiskOrFileEfi::Disk(disk),
             device_path,
+            file_path: None,
         });
     }
 
