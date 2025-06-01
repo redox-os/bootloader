@@ -255,6 +255,22 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                                 )
                                 }
                             }
+                            DevicePathMessagingType::Mac
+                                if node_data.len() == 33 && node_data[32] == 0
+                                    || node_data[32] == 1 =>
+                            {
+                                write!(
+                                    s,
+                                    "Mac({:02x}{:02x}{:02x}{:02x}{:02x}{:02x},{:#02x})",
+                                    node_data[0],
+                                    node_data[1],
+                                    node_data[2],
+                                    node_data[3],
+                                    node_data[4],
+                                    node_data[5],
+                                    node_data[32],
+                                )
+                            }
                             _ => write!(s, "{path_type:?} {sub_type:?} {node_data:X?}"),
                         },
                         Err(()) => {
