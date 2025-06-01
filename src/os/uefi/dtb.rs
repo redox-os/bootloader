@@ -1,4 +1,4 @@
-use crate::{Disk, Os, OsVideoMode};
+use crate::Os;
 use alloc::vec::Vec;
 use byteorder::ByteOrder;
 use byteorder::BE;
@@ -73,10 +73,7 @@ unsafe fn get_dev_mem_region(fdt: &Fdt) {
     }
 }
 
-fn parse_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &dyn Os<D, V>,
-    address: *const u8,
-) -> Option<(u64, u64)> {
+fn parse_dtb(os: &impl Os, address: *const u8) -> Option<(u64, u64)> {
     unsafe {
         if let Ok(fdt) = fdt::Fdt::from_ptr(address) {
             let mut rsdps_area = Vec::new();
@@ -119,9 +116,7 @@ fn find_smbios3_system(address: *const u8) -> Result<dmidecode::System<'static>>
     Err(Status::NOT_FOUND)
 }
 
-pub(crate) fn find_dtb<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &dyn Os<D, V>,
-) -> Option<(u64, u64)> {
+pub(crate) fn find_dtb(os: &impl Os) -> Option<(u64, u64)> {
     let cfg_tables = std::system_table().config_tables();
     for cfg_table in cfg_tables.iter() {
         if cfg_table.VendorGuid == DEVICE_TREE_GUID {

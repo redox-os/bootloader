@@ -115,10 +115,7 @@ pub struct KernelArgs {
     bootstrap_size: u64,
 }
 
-fn select_mode<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &dyn Os<D, V>,
-    output_i: usize,
-) -> Option<OsVideoMode> {
+fn select_mode(os: &impl Os, output_i: usize) -> Option<OsVideoMode> {
     let mut modes = Vec::new();
     for mode in os.video_modes(output_i) {
         let mut aspect_w = mode.width;
@@ -257,9 +254,7 @@ fn select_mode<D: Disk, V: Iterator<Item = OsVideoMode>>(
     mode_opt
 }
 
-fn redoxfs<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &dyn Os<D, V>,
-) -> (redoxfs::FileSystem<D>, Option<&'static [u8]>) {
+fn redoxfs<O: Os>(os: &O) -> (redoxfs::FileSystem<O::D>, Option<&'static [u8]>) {
     let attempts = 10;
     for attempt in 0..=attempts {
         let mut password_opt = None;
@@ -326,9 +321,9 @@ enum Filetype {
     Elf,
     Initfs,
 }
-fn load_to_memory<D: Disk>(
-    os: &dyn Os<D, impl Iterator<Item = OsVideoMode>>,
-    fs: &mut redoxfs::FileSystem<D>,
+fn load_to_memory<O: Os>(
+    os: &O,
+    fs: &mut redoxfs::FileSystem<O::D>,
     dirname: &str,
     filename: &str,
     filetype: Filetype,
@@ -431,7 +426,7 @@ fn elf_entry(data: &[u8]) -> (u64, bool) {
     }
 }
 
-fn main<D: Disk, V: Iterator<Item = OsVideoMode>>(os: &dyn Os<D, V>) -> (usize, u64, KernelArgs) {
+fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
     println!(
         "Redox OS Bootloader {} on {}",
         env!("CARGO_PKG_VERSION"),

@@ -94,7 +94,10 @@ unsafe fn search_rsdp(start: usize, end: usize) -> Option<(u64, u64)> {
     None
 }
 
-impl Os<DiskBios, VideoModeIter> for OsBios {
+impl Os for OsBios {
+    type D = DiskBios;
+    type V = VideoModeIter;
+
     fn name(&self) -> &str {
         "x86/BIOS"
     }

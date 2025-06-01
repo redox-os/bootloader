@@ -147,7 +147,10 @@ impl OsEfi {
     }
 }
 
-impl Os<DiskEfi, VideoModeIter> for OsEfi {
+impl Os for OsEfi {
+    type D = DiskEfi;
+    type V = VideoModeIter;
+
     #[cfg(target_arch = "aarch64")]
     fn name(&self) -> &str {
         "aarch64/UEFI"

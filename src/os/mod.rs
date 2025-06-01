@@ -63,7 +63,10 @@ pub struct OsVideoMode {
     pub base: u64,
 }
 
-pub trait Os<D: Disk, V: Iterator<Item = OsVideoMode>> {
+pub trait Os {
+    type D: Disk;
+    type V: Iterator<Item = OsVideoMode>;
+
     fn name(&self) -> &str;
 
     fn alloc_zeroed_page_aligned(&self, size: usize) -> *mut u8;
@@ -71,12 +74,15 @@ pub trait Os<D: Disk, V: Iterator<Item = OsVideoMode>> {
     #[allow(dead_code)]
     fn page_size(&self) -> usize;
 
-    fn filesystem(&self, password_opt: Option<&[u8]>) -> syscall::Result<redoxfs::FileSystem<D>>;
+    fn filesystem(
+        &self,
+        password_opt: Option<&[u8]>,
+    ) -> syscall::Result<redoxfs::FileSystem<Self::D>>;
 
     fn hwdesc(&self) -> OsHwDesc;
 
     fn video_outputs(&self) -> usize;
-    fn video_modes(&self, output_i: usize) -> V;
+    fn video_modes(&self, output_i: usize) -> Self::V;
     fn set_video_mode(&self, output_i: usize, mode: &mut OsVideoMode);
     fn best_resolution(&self, output_i: usize) -> Option<(u32, u32)>;
 
