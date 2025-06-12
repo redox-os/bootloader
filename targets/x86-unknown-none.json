@@ -14,6 +14,7 @@
         "gcc": ["-m32", "-nostdlib", "-static"]
     },
     "features": "-mmx,-sse,-sse2,-sse3,-ssse3,-sse4.1,-sse4.2,-3dnow,-3dnowa,-avx,-avx2,+soft-float",
+    "rustc-abi": "x86-softfloat",
     "dynamic-linking": false,
     "executables": false,
     "relocation-model": "static",

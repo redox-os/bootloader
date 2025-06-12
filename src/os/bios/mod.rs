@@ -73,7 +73,7 @@ pub struct Xsdp {
 
 unsafe fn search_rsdp(start: usize, end: usize) -> Option<(u64, u64)> {
     // Align start up to 16 bytes
-    let mut addr = ((start + 15) / 16) * 16;
+    let mut addr = start.div_ceil(16) * 16;
     // Search until reading the end of the Rsdp would be past the end of the memory area
     while addr + mem::size_of::<Rsdp>() <= end {
         let rsdp = ptr::read(addr as *const Rsdp);
@@ -94,7 +94,10 @@ unsafe fn search_rsdp(start: usize, end: usize) -> Option<(u64, u64)> {
     None
 }
 
-impl Os<DiskBios, VideoModeIter> for OsBios {
+impl Os for OsBios {
+    type D = DiskBios;
+    type V = VideoModeIter;
+
     fn name(&self) -> &str {
         "x86/BIOS"
     }
@@ -103,7 +106,7 @@ impl Os<DiskBios, VideoModeIter> for OsBios {
         assert!(size != 0);
 
         let page_size = self.page_size();
-        let pages = (size + page_size - 1) / page_size;
+        let pages = size.div_ceil(page_size);
 
         let ptr =
             unsafe { alloc_zeroed(Layout::from_size_align(pages * page_size, page_size).unwrap()) };
@@ -299,7 +302,7 @@ pub unsafe extern "C" fn start(
         args.stack_base
             + args.stack_size
             + if crate::KERNEL_64BIT {
-                crate::arch::x64::PHYS_OFFSET as u64
+                crate::arch::x64::PHYS_OFFSET
             } else {
                 crate::arch::x32::PHYS_OFFSET as u64
             },

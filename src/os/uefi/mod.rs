@@ -15,7 +15,7 @@ use crate::os::{Os, OsHwDesc, OsKey, OsVideoMode};
 
 use self::{
     device::{device_path_to_string, disk_device_priority},
-    disk::DiskEfi,
+    disk::DiskOrFileEfi,
     display::{EdidActive, Output},
     video_mode::VideoModeIter,
 };
@@ -42,7 +42,7 @@ pub(crate) fn alloc_zeroed_page_aligned(size: usize) -> *mut u8 {
     assert!(size != 0);
 
     let page_size = page_size();
-    let pages = (size + page_size - 1) / page_size;
+    let pages = size.div_ceil(page_size);
 
     let ptr = {
         // Max address mapped by src/arch paging code (8 GiB)
@@ -147,7 +147,10 @@ impl OsEfi {
     }
 }
 
-impl Os<DiskEfi, VideoModeIter> for OsEfi {
+impl Os for OsEfi {
+    type D = DiskOrFileEfi;
+    type V = VideoModeIter;
+
     #[cfg(target_arch = "aarch64")]
     fn name(&self) -> &str {
         "aarch64/UEFI"
@@ -174,22 +177,21 @@ impl Os<DiskEfi, VideoModeIter> for OsEfi {
     fn filesystem(
         &self,
         password_opt: Option<&[u8]>,
-    ) -> syscall::Result<redoxfs::FileSystem<DiskEfi>> {
+    ) -> syscall::Result<redoxfs::FileSystem<DiskOrFileEfi>> {
         // Search for RedoxFS on disks in prioritized order
         println!("Looking for RedoxFS:");
         for device in disk_device_priority() {
-            println!(" - {}", device_path_to_string(device.device_path.0));
-
-            if !device.disk.0.Media.MediaPresent {
-                continue;
+            if let Some(file_path) = device.file_path {
+                println!(
+                    " - {}\\{}",
+                    device_path_to_string(device.device_path.0),
+                    file_path
+                )
+            } else {
+                println!(" - {}", device_path_to_string(device.device_path.0))
             }
 
-            let block = if device.disk.0.Media.LogicalPartition {
-                0
-            } else {
-                //TODO: get block from partition table
-                2 * crate::MIBI as u64 / redoxfs::BLOCK_SIZE
-            };
+            let block = device.partition_offset / redoxfs::BLOCK_SIZE;
 
             match redoxfs::FileSystem::open(device.disk, password_opt, Some(block), false) {
                 Ok(ok) => return Ok(ok),

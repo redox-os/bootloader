@@ -1,7 +1,7 @@
 use core::slice;
 use uefi::guid::{ACPI_20_TABLE_GUID, ACPI_TABLE_GUID};
 
-use crate::{Disk, Os, OsVideoMode};
+use crate::Os;
 
 struct Invalid;
 
@@ -62,9 +62,7 @@ fn validate_rsdp(address: usize, _v2: bool) -> core::result::Result<usize, Inval
     Ok(length)
 }
 
-pub(crate) fn find_acpi_table_pointers<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &dyn Os<D, V>,
-) -> Option<(u64, u64)> {
+pub(crate) fn find_acpi_table_pointers(os: &impl Os) -> Option<(u64, u64)> {
     let cfg_tables = std::system_table().config_tables();
     let mut acpi = None;
     let mut acpi2 = None;
@@ -103,7 +101,7 @@ pub(crate) fn find_acpi_table_pointers<D: Disk, V: Iterator<Item = OsVideoMode>>
             // Copy to page aligned area
             let size = rsdp_area.len();
             let base = os.alloc_zeroed_page_aligned(size);
-            slice::from_raw_parts_mut(base, size).copy_from_slice(&rsdp_area);
+            slice::from_raw_parts_mut(base, size).copy_from_slice(rsdp_area);
             Some((base as u64, size as u64))
         }
     } else {

@@ -42,7 +42,7 @@ impl Iterator for VideoModeIter {
                 let stride = mode.PixelsPerScanLine;
 
                 return Some(OsVideoMode {
-                    id: id as u32,
+                    id,
                     width,
                     height,
                     stride,

@@ -1,7 +1,6 @@
 use crate::area_add;
-use crate::os::{dtb::is_in_dev_mem_region, Os, OsMemoryEntry, OsMemoryKind, OsVideoMode};
+use crate::os::{dtb::is_in_dev_mem_region, Os, OsMemoryEntry, OsMemoryKind};
 use core::slice;
-use redoxfs::Disk;
 
 pub(crate) const PF_PRESENT: u64 = 1 << 0;
 pub(crate) const PF_TABLE: u64 = 1 << 1;
@@ -17,9 +16,7 @@ pub(crate) const PAGE_ENTRIES: usize = 512;
 const PAGE_SIZE: usize = 4096;
 pub(crate) const PHYS_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
-unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &dyn Os<D, V>,
-) -> Option<&'static mut [u64]> {
+unsafe fn paging_allocate(os: &impl Os) -> Option<&'static mut [u64]> {
     let ptr = os.alloc_zeroed_page_aligned(PAGE_SIZE);
     if !ptr.is_null() {
         area_add(OsMemoryEntry {
@@ -33,11 +30,7 @@ unsafe fn paging_allocate<D: Disk, V: Iterator<Item = OsVideoMode>>(
     }
 }
 
-pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &dyn Os<D, V>,
-    kernel_phys: u64,
-    kernel_size: u64,
-) -> Option<usize> {
+pub unsafe fn paging_create(os: &impl Os, kernel_phys: u64, kernel_size: u64) -> Option<usize> {
     // Create L0
     let l0 = paging_allocate(os)?;
 
@@ -93,8 +86,8 @@ pub unsafe fn paging_create<D: Disk, V: Iterator<Item = OsVideoMode>>(
     Some(l0.as_ptr() as usize)
 }
 
-pub unsafe fn paging_framebuffer<D: Disk, V: Iterator<Item = OsVideoMode>>(
-    os: &dyn Os<D, V>,
+pub unsafe fn paging_framebuffer(
+    os: &impl Os,
     page_phys: usize,
     framebuffer_phys: u64,
     framebuffer_size: u64,
