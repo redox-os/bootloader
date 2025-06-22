@@ -73,13 +73,13 @@ fn esp_live_image(esp_handle: Handle, esp_device_path: &DevicePath) -> Option<Ve
         ret
     }
 
-    let filename = const { &as_utf16_str(*b"redox-live.img\0") };
+    let filename = const { &as_utf16_str(*b"redox-live.iso\0") };
     let mut live_image = match root.open(filename) {
         Ok(live_image) => live_image,
         Err(Status::NOT_FOUND) => return None,
         Err(err) => {
             log::warn!(
-                "Failed to open {}\\redox-live.img: {:?}",
+                "Failed to open {}\\redox-live.iso: {:?}",
                 device_path_to_string(esp_device_path),
                 err
             );
@@ -126,7 +126,7 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
     };
 
     if cfg!(feature = "live") {
-        // First try to get a live image from redox-live.img. This is required to support netbooting.
+        // First try to get a live image from redox-live.iso. This is required to support netbooting.
         if let Some(buffer) = esp_live_image(esp_handle, esp_device_path.0) {
             return vec![DiskDevice {
                 handle: esp_handle,
@@ -139,7 +139,7 @@ pub fn disk_device_priority() -> Vec<DiskDevice> {
                 },
                 disk: DiskOrFileEfi::File(buffer),
                 device_path: esp_device_path,
-                file_path: Some("redox-live.img"),
+                file_path: Some("redox-live.iso"),
             }];
         }
     }
