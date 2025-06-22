@@ -115,7 +115,7 @@ pub struct KernelArgs {
     bootstrap_size: u64,
 }
 
-fn select_mode(os: &impl Os, output_i: usize) -> Option<OsVideoMode> {
+fn select_mode(os: &impl Os, output_i: usize, live: &mut bool) -> Option<OsVideoMode> {
     let mut modes = Vec::new();
     for mode in os.video_modes(output_i) {
         let mut aspect_w = mode.width;
@@ -158,6 +158,12 @@ fn select_mode(os: &impl Os, output_i: usize) -> Option<OsVideoMode> {
     println!();
 
     println!("Arrow keys and enter select mode");
+    let live_mode = os.get_text_position();
+    if *live {
+        println!("Press l to disable live mode");
+    } else {
+        println!("Press l to  enable live mode");
+    }
     println!();
     print!(" ");
 
@@ -242,6 +248,15 @@ fn select_mode(os: &impl Os, output_i: usize) -> Option<OsVideoMode> {
                     }
                 }
                 break;
+            }
+            OsKey::Char('l') => {
+                *live = !*live;
+                os.set_text_position(live_mode.0, live_mode.1);
+                if *live {
+                    println!("Press l to disable live mode");
+                } else {
+                    println!("Press l to  enable live mode");
+                }
             }
             _ => (),
         }
@@ -455,11 +470,12 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
     println!();
 
     let mut mode_opts = Vec::new();
+    let mut live = cfg!(feature = "live");
     for output_i in 0..os.video_outputs() {
         if output_i > 0 {
             os.clear_text();
         }
-        mode_opts.push(select_mode(os, output_i));
+        mode_opts.push(select_mode(os, output_i, &mut live));
     }
 
     let stack_size = 128 * KIBI;
@@ -468,7 +484,7 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
         panic!("Failed to allocate memory for stack");
     }
 
-    let live_opt = if cfg!(feature = "live") {
+    let live_opt = if live {
         let size = fs.header.size();
 
         print!("live: 0/{} MiB", size / MIBI as u64);
