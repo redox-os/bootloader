@@ -312,6 +312,13 @@ fn redoxfs<O: Os>(os: &O) -> (redoxfs::FileSystem<O::D>, Option<&'static [u8]>) 
                         // Copy password to page aligned memory
                         let password_size = password.len();
                         let password_base = os.alloc_zeroed_page_aligned(password_size);
+
+                        area_add(OsMemoryEntry {
+                            base: password_base as u64,
+                            size: password_size as u64,
+                            kind: OsMemoryKind::Reserved,
+                        });
+
                         unsafe {
                             ptr::copy(password.as_ptr(), password_base, password_size);
                             slice::from_raw_parts(password_base, password_size)
