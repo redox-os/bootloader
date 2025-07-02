@@ -78,7 +78,7 @@ impl OsEfi {
             match status_to_result((st.BootServices.LocateHandle)(
                 LocateSearchType::ByProtocol,
                 &guid,
-                0,
+                ptr::null(),
                 &mut len,
                 handles.as_mut_ptr(),
             )) {

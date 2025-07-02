@@ -7,7 +7,7 @@ all: $(BUILD)/bootloader.bin
 
 $(BUILD)/libbootloader.a: $(SOURCE)/Cargo.toml $(SOURCE)/Cargo.lock $(shell find $(SOURCE)/src -type f)
 	mkdir -p "$(BUILD)"
-	env RUSTFLAGS="-C soft-float" \
+	env RUSTFLAGS="-C soft-float --cfg aes_force_soft" \
 	cargo rustc \
 		--manifest-path="$<" \
 		-Z build-std=core,alloc \
@@ -20,7 +20,7 @@ $(BUILD)/libbootloader.a: $(SOURCE)/Cargo.toml $(SOURCE)/Cargo.lock $(shell find
 
 $(BUILD)/libbootloader-live.a: $(SOURCE)/Cargo.toml $(SOURCE)/Cargo.lock $(shell find $(SOURCE)/src -type f)
 	mkdir -p "$(BUILD)"
-	env RUSTFLAGS="-C soft-float" \
+	env RUSTFLAGS="-C soft-float --cfg aes_force_soft" \
 	cargo rustc \
 		--manifest-path="$<" \
 		-Z build-std=core,alloc \
