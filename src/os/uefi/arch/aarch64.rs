@@ -96,10 +96,10 @@ unsafe extern "C" fn kernel_entry(
             out(reg) _
         );
 
-        // Configure execution state of EL1 as aarch64 and disable hypervisor call
+        // Configure execution state of EL1 as aarch64 and disable hypervisor call.
         asm!(
             "msr hcr_el2, {0}",
-            in(reg) ((1 << 31) | (1 << 29)) as u64,
+            in(reg) ((1u64 << 31) | (1u64 << 29)),
         );
 
         // Set saved program status register
