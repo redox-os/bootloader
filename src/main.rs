@@ -55,6 +55,7 @@ pub fn area_add(area: OsMemoryEntry) {
                     return;
                 }
                 if area.base.unchecked_add(area.size) == existing_area.base {
+                    existing_area.size += area.size;
                     existing_area.base = area.base;
                     return;
                 }
