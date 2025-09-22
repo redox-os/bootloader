@@ -39,7 +39,7 @@ unsafe fn get_dev_mem_region(fdt: &Fdt) {
             if cell_sizes.address_cells == 1 {
                 BE::read_u32(&chunk[0..4]) as u64
             } else if cell_sizes.address_cells == 2 {
-                BE::read_u32(&chunk[0..8]) as u64
+                BE::read_u64(&chunk[0..8]) as u64
             } else {
                 DEV_MEM_AREA.clear();
                 return;
@@ -49,7 +49,7 @@ unsafe fn get_dev_mem_region(fdt: &Fdt) {
             if cell_sizes.address_cells == 1 {
                 BE::read_u32(&chunk[4..8]) as u64
             } else if cell_sizes.address_cells == 2 {
-                BE::read_u32(&chunk[8..16]) as u64
+                BE::read_u64(&chunk[8..16]) as u64
             } else {
                 DEV_MEM_AREA.clear();
                 return;
@@ -59,7 +59,7 @@ unsafe fn get_dev_mem_region(fdt: &Fdt) {
             if cell_sizes.size_cells == 1 {
                 BE::read_u32(&chunk[8..12]) as u64
             } else if cell_sizes.size_cells == 2 {
-                BE::read_u32(&chunk[16..20]) as u64
+                BE::read_u64(&chunk[16..24]) as u64
             } else {
                 DEV_MEM_AREA.clear();
                 return;
