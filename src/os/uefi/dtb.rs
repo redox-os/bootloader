@@ -29,42 +29,14 @@ unsafe fn get_dev_mem_region(fdt: &Fdt) {
     let Some(soc) = fdt.find_node("/soc") else {
         return;
     };
-    let Some(ranges) = soc.property("ranges") else {
+    let Some(ranges) = soc.ranges() else {
         return;
     };
     let cell_sizes = soc.cell_sizes();
-    let chunk_size = (cell_sizes.address_cells * 2 + cell_sizes.size_cells) * 4;
-    for chunk in ranges.value.chunks(chunk_size) {
-        let child_bus_addr = {
-            if cell_sizes.address_cells == 1 {
-                BE::read_u32(&chunk[0..4]) as u64
-            } else if cell_sizes.address_cells == 2 {
-                BE::read_u64(&chunk[0..8]) as u64
-            } else {
-                DEV_MEM_AREA.clear();
-                return;
-            }
-        };
-        let parent_bus_addr = {
-            if cell_sizes.address_cells == 1 {
-                BE::read_u32(&chunk[4..8]) as u64
-            } else if cell_sizes.address_cells == 2 {
-                BE::read_u64(&chunk[8..16]) as u64
-            } else {
-                DEV_MEM_AREA.clear();
-                return;
-            }
-        };
-        let addr_size = {
-            if cell_sizes.size_cells == 1 {
-                BE::read_u32(&chunk[8..12]) as u64
-            } else if cell_sizes.size_cells == 2 {
-                BE::read_u64(&chunk[16..24]) as u64
-            } else {
-                DEV_MEM_AREA.clear();
-                return;
-            }
-        };
+    for chunk in ranges {
+        let child_bus_addr = chunk.child_bus_address;
+        let parent_bus_addr = chunk.parent_bus_address;
+        let addr_size = chunk.size;
         println!(
             "dev mem 0x{:08x} 0x{:08x} 0x{:08x}",
             child_bus_addr, parent_bus_addr, addr_size

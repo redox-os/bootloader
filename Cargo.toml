@@ -22,7 +22,7 @@ redox_syscall = "0.5"
 spin = "0.9.5"
 
 [dependencies.redoxfs]
-version = "0.7.0"
+path = "/mnt/redox/redoxfs"
 default-features = false
 features = ["log"]
 
@@ -43,7 +43,7 @@ x86 = "0.52.0"
 
 [target.'cfg(any(target_arch = "aarch64", target_arch = "riscv64"))'.dependencies]
 byteorder = { version = "1", default-features = false }
-fdt = "0.1.5"
+fdt = { git = "https://github.com/repnop/fdt.git", rev = "2fb1409edd1877c714a0aa36b6a7c5351004be54" }
 
 [features]
 default = []
