@@ -100,7 +100,8 @@ pub unsafe fn paging_framebuffer(
     let l0_i = ((framebuffer_phys / 0x80_0000_0000) + 256) as usize;
     let mut l1_i = ((framebuffer_phys % 0x80_0000_0000) / 0x4000_0000) as usize;
     let mut l2_i = ((framebuffer_phys % 0x4000_0000) / 0x20_0000) as usize;
-    assert_eq!(framebuffer_phys % 0x20_0000, 0);
+    let mut l3_i = ((framebuffer_phys % 0x20_0000) / (PAGE_SIZE as u64)) as usize;
+    assert_eq!(framebuffer_phys % (PAGE_SIZE as u64), 0);
 
     let l0 = slice::from_raw_parts_mut(page_phys as *mut u64, PAGE_ENTRIES);
 
@@ -121,12 +122,21 @@ pub unsafe fn paging_framebuffer(
         l1[l1_i] = l2.as_ptr() as u64 | PF_ACCESS | PF_TABLE | PF_PRESENT;
 
         while framebuffer_mapped < framebuffer_size && l2_i < l2.len() {
-            let addr = framebuffer_phys + framebuffer_mapped;
+            let l3 = paging_allocate(os)?;
             assert_eq!(l2[l2_i], 0);
-            //TODO: is PF_RAM okay?
-            l2[l2_i] = addr | PF_ACCESS | PF_RAM | PF_PRESENT;
-            framebuffer_mapped += 0x20_0000;
+            l2[l2_i] = l3.as_ptr() as u64 | PF_ACCESS | PF_TABLE | PF_PRESENT;
+
+            while framebuffer_mapped < framebuffer_size && l3_i < l3.len() {
+                let addr = framebuffer_phys + framebuffer_mapped;
+                assert_eq!(l3[l3_i], 0);
+                //TODO: is PF_RAM okay?
+                l3[l3_i] = addr | PF_ACCESS | PF_RAM | PF_TABLE | PF_PRESENT;
+                framebuffer_mapped += PAGE_SIZE as u64;
+                l3_i += 1;
+            }
+
             l2_i += 1;
+            l3_i = 0;
         }
 
         l1_i += 1;
