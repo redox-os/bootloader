@@ -22,7 +22,7 @@ redox_syscall = "0.5"
 spin = "0.9.5"
 
 [dependencies.redoxfs]
-path = "/mnt/redox/redoxfs"
+version = "0.7.0"
 default-features = false
 features = ["log"]
 
