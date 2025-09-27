@@ -31,16 +31,22 @@ impl ThunkData {
     }
 
     pub unsafe fn save(&self) {
-        ptr::write((THUNK_STACK_ADDR - 64) as *mut ThunkData, *self);
+        unsafe {
+            ptr::write((THUNK_STACK_ADDR - 64) as *mut ThunkData, *self);
+        }
     }
 
     pub unsafe fn load(&mut self) {
-        *self = ptr::read((THUNK_STACK_ADDR - 64) as *const ThunkData);
+        unsafe {
+            *self = ptr::read((THUNK_STACK_ADDR - 64) as *const ThunkData);
+        }
     }
 
     pub unsafe fn with(&mut self, f: extern "C" fn()) {
-        self.save();
-        f();
-        self.load();
+        unsafe {
+            self.save();
+            f();
+            self.load();
+        }
     }
 }

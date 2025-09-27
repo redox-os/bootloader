@@ -53,7 +53,9 @@ impl Vga {
     }
 
     pub unsafe fn blocks(&mut self) -> &'static mut [VgaTextBlock] {
-        slice::from_raw_parts_mut(self.base as *mut VgaTextBlock, self.width * self.height)
+        unsafe {
+            slice::from_raw_parts_mut(self.base as *mut VgaTextBlock, self.width * self.height)
+        }
     }
 
     pub fn clear(&mut self) {

@@ -1,7 +1,7 @@
 use crate::Os;
 use alloc::vec::Vec;
-use byteorder::ByteOrder;
 use byteorder::BE;
+use byteorder::ByteOrder;
 use core::slice;
 use fdt::Fdt;
 use uefi::guid::DEVICE_TREE_GUID;
@@ -14,34 +14,40 @@ use uefi::{
 pub static mut DEV_MEM_AREA: Vec<(usize, usize)> = Vec::new();
 
 pub unsafe fn is_in_dev_mem_region(addr: usize) -> bool {
-    if DEV_MEM_AREA.is_empty() {
+    #[allow(static_mut_refs)]
+    unsafe {
+        if DEV_MEM_AREA.is_empty() {
+            return false;
+        }
+        for item in DEV_MEM_AREA.iter() {
+            if (addr >= item.0) && (addr < item.0 + item.1) {
+                return true;
+            }
+        }
         return false;
     }
-    for item in DEV_MEM_AREA.iter() {
-        if (addr >= item.0) && (addr < item.0 + item.1) {
-            return true;
-        }
-    }
-    return false;
 }
 
 unsafe fn get_dev_mem_region(fdt: &Fdt) {
-    let Some(soc) = fdt.find_node("/soc") else {
-        return;
-    };
-    let Some(ranges) = soc.ranges() else {
-        return;
-    };
-    let cell_sizes = soc.cell_sizes();
-    for chunk in ranges {
-        let child_bus_addr = chunk.child_bus_address;
-        let parent_bus_addr = chunk.parent_bus_address;
-        let addr_size = chunk.size;
-        println!(
-            "dev mem 0x{:08x} 0x{:08x} 0x{:08x}",
-            child_bus_addr, parent_bus_addr, addr_size
-        );
-        DEV_MEM_AREA.push((parent_bus_addr as usize, addr_size as usize));
+    unsafe {
+        let Some(soc) = fdt.find_node("/soc") else {
+            return;
+        };
+        let Some(ranges) = soc.ranges() else {
+            return;
+        };
+        let cell_sizes = soc.cell_sizes();
+        for chunk in ranges {
+            let child_bus_addr = chunk.child_bus_address;
+            let parent_bus_addr = chunk.parent_bus_address;
+            let addr_size = chunk.size;
+            println!(
+                "dev mem 0x{:08x} 0x{:08x} 0x{:08x}",
+                child_bus_addr, parent_bus_addr, addr_size
+            );
+            #[allow(static_mut_refs)]
+            DEV_MEM_AREA.push((parent_bus_addr as usize, addr_size as usize));
+        }
     }
 }
 

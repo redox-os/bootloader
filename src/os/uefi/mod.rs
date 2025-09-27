@@ -2,13 +2,13 @@ use alloc::vec::Vec;
 use core::{cell::RefCell, mem, ptr, slice};
 use std::proto::Protocol;
 use uefi::{
+    Handle,
     boot::LocateSearchType,
     memory::MemoryType,
     reset::ResetType,
     status::{Result, Status},
     system::SystemTable,
     text::TextInputKey,
-    Handle,
 };
 
 use crate::os::{Os, OsHwDesc, OsKey, OsVideoMode};
@@ -103,27 +103,26 @@ impl OsEfi {
 
                                 for other_output in outputs.iter() {
                                     if output.0.Mode.FrameBufferBase
-                                        == other_output.0 .0.Mode.FrameBufferBase
+                                        == other_output.0.0.Mode.FrameBufferBase
                                     {
-                                        log::debug!("Skipping output with frame buffer base matching another output");
+                                        log::debug!(
+                                            "Skipping output with frame buffer base matching another output"
+                                        );
                                         continue 'handles;
                                     }
                                 }
 
-                                outputs.push((
-                                    output,
-                                    match EdidActive::handle_protocol(handle) {
-                                        Ok(efi_edid) => Some(efi_edid),
-                                        Err(err) => {
-                                            log::warn!(
-                                                "Failed to get EFI EDID from handle {:?}: {:?}",
-                                                handle,
-                                                err
-                                            );
-                                            None
-                                        }
-                                    },
-                                ));
+                                outputs.push((output, match EdidActive::handle_protocol(handle) {
+                                    Ok(efi_edid) => Some(efi_edid),
+                                    Err(err) => {
+                                        log::warn!(
+                                            "Failed to get EFI EDID from handle {:?}: {:?}",
+                                            handle,
+                                            err
+                                        );
+                                        None
+                                    }
+                                }));
                             }
                             Err(err) => {
                                 log::warn!(
@@ -234,7 +233,7 @@ impl Os for OsEfi {
         let output_opt = match self.outputs.borrow_mut().get_mut(output_i) {
             Some(output) => unsafe {
                 // Hack to enable clone
-                let ptr = output.0 .0 as *mut _;
+                let ptr = output.0.0 as *mut _;
                 Some(Output::new(&mut *ptr))
             },
             None => None,
@@ -376,7 +375,7 @@ fn set_max_mode(output: &uefi::text::TextOutput) -> Result<()> {
     Ok(())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn main() -> Status {
     let uefi = std::system_table();
 

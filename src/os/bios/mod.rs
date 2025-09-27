@@ -1,11 +1,11 @@
-use alloc::alloc::{alloc_zeroed, Layout};
+use alloc::alloc::{Layout, alloc_zeroed};
 use core::{convert::TryFrom, mem, ptr, slice};
 use linked_list_allocator::LockedHeap;
 use spin::Mutex;
 
+use crate::KernelArgs;
 use crate::logger::LOGGER;
 use crate::os::{Os, OsHwDesc, OsKey, OsVideoMode};
-use crate::KernelArgs;
 
 use self::disk::DiskBios;
 use self::memory_map::memory_map;
@@ -72,26 +72,28 @@ pub struct Xsdp {
 }
 
 unsafe fn search_rsdp(start: usize, end: usize) -> Option<(u64, u64)> {
-    // Align start up to 16 bytes
-    let mut addr = start.div_ceil(16) * 16;
-    // Search until reading the end of the Rsdp would be past the end of the memory area
-    while addr + mem::size_of::<Rsdp>() <= end {
-        let rsdp = ptr::read(addr as *const Rsdp);
-        if &rsdp.signature == b"RSD PTR " {
-            //TODO: check checksum?
-            if rsdp.revision == 0 {
-                return Some((addr as u64, mem::size_of::<Rsdp>() as u64));
-            } else if rsdp.revision == 2 {
-                let xsdp = ptr::read(addr as *const Xsdp);
-                //TODO: check extended checksum?
-                return Some((addr as u64, xsdp.length as u64));
+    unsafe {
+        // Align start up to 16 bytes
+        let mut addr = start.div_ceil(16) * 16;
+        // Search until reading the end of the Rsdp would be past the end of the memory area
+        while addr + mem::size_of::<Rsdp>() <= end {
+            let rsdp = ptr::read(addr as *const Rsdp);
+            if &rsdp.signature == b"RSD PTR " {
+                //TODO: check checksum?
+                if rsdp.revision == 0 {
+                    return Some((addr as u64, mem::size_of::<Rsdp>() as u64));
+                } else if rsdp.revision == 2 {
+                    let xsdp = ptr::read(addr as *const Xsdp);
+                    //TODO: check extended checksum?
+                    return Some((addr as u64, xsdp.length as u64));
+                }
             }
-        }
 
-        // Rsdp is always aligned to 16 bytes
-        addr += 16;
+            // Rsdp is always aligned to 16 bytes
+            addr += 16;
+        }
+        None
     }
-    None
 }
 
 impl Os for OsBios {
@@ -240,7 +242,7 @@ impl Os for OsBios {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn start(
     kernel_entry: extern "C" fn(
         page_table: usize,
@@ -255,59 +257,61 @@ pub unsafe extern "C" fn start(
     thunk15: extern "C" fn(),
     thunk16: extern "C" fn(),
 ) -> ! {
-    #[cfg(feature = "serial_debug")]
-    {
-        let mut com1 = serial::COM1.lock();
-        com1.init();
-        com1.write(b"SERIAL\n");
+    unsafe {
+        #[cfg(feature = "serial_debug")]
+        {
+            let mut com1 = serial::COM1.lock();
+            com1.init();
+            com1.write(b"SERIAL\n");
+        }
+
+        {
+            // Make sure we are in mode 3 (80x25 text mode)
+            let mut data = ThunkData::new();
+            data.eax = 0x03;
+            data.with(thunk10);
+        }
+
+        {
+            // Disable cursor
+            let mut data = ThunkData::new();
+            data.eax = 0x0100;
+            data.ecx = 0x3F00;
+            data.with(thunk10);
+        }
+
+        // Clear screen
+        VGA.lock().clear();
+
+        // Set logger
+        LOGGER.init();
+
+        let mut os = OsBios {
+            boot_disk,
+            thunk10,
+            thunk13,
+            thunk15,
+            thunk16,
+        };
+
+        let (heap_start, heap_size) = memory_map(os.thunk15).expect("No memory for heap");
+
+        ALLOCATOR.lock().init(heap_start as *mut u8, heap_size);
+
+        let (page_phys, func, args) = crate::main(&mut os);
+
+        kernel_entry(
+            page_phys,
+            args.stack_base
+                + args.stack_size
+                + if crate::KERNEL_64BIT {
+                    crate::arch::x64::PHYS_OFFSET
+                } else {
+                    crate::arch::x32::PHYS_OFFSET as u64
+                },
+            func,
+            &args,
+            if crate::KERNEL_64BIT { 1 } else { 0 },
+        );
     }
-
-    {
-        // Make sure we are in mode 3 (80x25 text mode)
-        let mut data = ThunkData::new();
-        data.eax = 0x03;
-        data.with(thunk10);
-    }
-
-    {
-        // Disable cursor
-        let mut data = ThunkData::new();
-        data.eax = 0x0100;
-        data.ecx = 0x3F00;
-        data.with(thunk10);
-    }
-
-    // Clear screen
-    VGA.lock().clear();
-
-    // Set logger
-    LOGGER.init();
-
-    let mut os = OsBios {
-        boot_disk,
-        thunk10,
-        thunk13,
-        thunk15,
-        thunk16,
-    };
-
-    let (heap_start, heap_size) = memory_map(os.thunk15).expect("No memory for heap");
-
-    ALLOCATOR.lock().init(heap_start as *mut u8, heap_size);
-
-    let (page_phys, func, args) = crate::main(&mut os);
-
-    kernel_entry(
-        page_phys,
-        args.stack_base
-            + args.stack_size
-            + if crate::KERNEL_64BIT {
-                crate::arch::x64::PHYS_OFFSET
-            } else {
-                crate::arch::x32::PHYS_OFFSET as u64
-            },
-        func,
-        &args,
-        if crate::KERNEL_64BIT { 1 } else { 0 },
-    );
 }
