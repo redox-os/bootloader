@@ -4,9 +4,6 @@ use core::alloc::Layout;
 use core::arch::asm;
 use core::panic::PanicInfo;
 
-#[lang = "eh_personality"]
-pub extern "C" fn rust_eh_personality() {}
-
 /// Required to handle panics
 #[panic_handler]
 pub fn rust_begin_unwind(info: &PanicInfo) -> ! {

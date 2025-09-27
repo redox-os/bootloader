@@ -1,8 +1,6 @@
 #![no_std]
 #![feature(alloc_error_handler)]
 #![feature(int_roundings)]
-#![feature(lang_items)]
-#![allow(internal_features)]
 #![feature(let_chains)]
 #![cfg_attr(
     any(target_arch = "riscv64", target_os = "uefi"),
