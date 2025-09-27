@@ -1,8 +1,8 @@
+use crate::KernelArgs;
 use crate::arch::PHYS_OFFSET;
 use crate::logger::LOGGER;
-use crate::os::uefi::memory_map::memory_map;
 use crate::os::OsEfi;
-use crate::KernelArgs;
+use crate::os::uefi::memory_map::memory_map;
 use core::arch::asm;
 use core::mem;
 use uefi::status::Result;
@@ -18,24 +18,26 @@ unsafe extern "C" fn kernel_entry(
     func: u64,
     args: *const KernelArgs,
 ) -> ! {
-    // Set page tables
-    asm!(
-    "sfence.vma",
-    "csrw satp, {0}",
-    in(reg) (page_phys >> 12 | 9 << 60) // Sv48 mode
-    );
+    unsafe {
+        // Set page tables
+        asm!(
+        "sfence.vma",
+        "csrw satp, {0}",
+        in(reg) (page_phys >> 12 | 9 << 60) // Sv48 mode
+        );
 
-    let entry_fn: extern "C" fn(*const KernelArgs) -> ! = mem::transmute(func);
+        let entry_fn: extern "C" fn(*const KernelArgs) -> ! = mem::transmute(func);
 
-    // Set stack and go to kernel
-    asm!("mv sp, {0}",
-    "mv a0, {1}",
-    "jalr {2}",
-    in(reg) stack,
-    in(reg) args,
-    in(reg) entry_fn
-    );
-    loop {}
+        // Set stack and go to kernel
+        asm!("mv sp, {0}",
+        "mv a0, {1}",
+        "jalr {2}",
+        in(reg) stack,
+        in(reg) args,
+        in(reg) entry_fn
+        );
+        loop {}
+    }
 }
 
 pub fn main() -> Result<()> {

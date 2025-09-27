@@ -1,10 +1,10 @@
 use alloc::vec::Vec;
 use core::slice;
-use redoxfs::{Disk, BLOCK_SIZE, RECORD_SIZE};
+use redoxfs::{BLOCK_SIZE, Disk, RECORD_SIZE};
 use std::proto::Protocol;
-use syscall::{Error, Result, EINVAL, EIO};
+use syscall::{EINVAL, EIO, Error, Result};
 use uefi::block_io::BlockIo as UefiBlockIo;
-use uefi::guid::{Guid, BLOCK_IO_GUID};
+use uefi::guid::{BLOCK_IO_GUID, Guid};
 
 pub enum DiskOrFileEfi {
     Disk(DiskEfi),
@@ -13,14 +13,16 @@ pub enum DiskOrFileEfi {
 
 impl redoxfs::Disk for DiskOrFileEfi {
     unsafe fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> syscall::Result<usize> {
-        match self {
-            DiskOrFileEfi::Disk(disk_efi) => disk_efi.read_at(block, buffer),
-            DiskOrFileEfi::File(data) => {
-                buffer.copy_from_slice(
-                    &data[(block * redoxfs::BLOCK_SIZE) as usize
-                        ..(block * redoxfs::BLOCK_SIZE) as usize + buffer.len()],
-                );
-                Ok(buffer.len())
+        unsafe {
+            match self {
+                DiskOrFileEfi::Disk(disk_efi) => disk_efi.read_at(block, buffer),
+                DiskOrFileEfi::File(data) => {
+                    buffer.copy_from_slice(
+                        &data[(block * redoxfs::BLOCK_SIZE) as usize
+                            ..(block * redoxfs::BLOCK_SIZE) as usize + buffer.len()],
+                    );
+                    Ok(buffer.len())
+                }
             }
         }
     }
@@ -54,51 +56,53 @@ impl Protocol<UefiBlockIo> for DiskEfi {
 
 impl Disk for DiskEfi {
     unsafe fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> Result<usize> {
-        // Optimization for live disks
-        if let Some(live) = crate::LIVE_OPT {
-            if block >= live.0 {
-                let start = ((block - live.0) * BLOCK_SIZE) as usize;
-                let end = start + buffer.len();
-                if end <= live.1.len() {
-                    buffer.copy_from_slice(&live.1[start..end]);
-                    return Ok(buffer.len());
+        unsafe {
+            // Optimization for live disks
+            if let Some(live) = crate::LIVE_OPT {
+                if block >= live.0 {
+                    let start = ((block - live.0) * BLOCK_SIZE) as usize;
+                    let end = start + buffer.len();
+                    if end <= live.1.len() {
+                        buffer.copy_from_slice(&live.1[start..end]);
+                        return Ok(buffer.len());
+                    }
                 }
             }
-        }
 
-        // Use aligned buffer if necessary
-        let mut ptr = buffer.as_mut_ptr();
-        if self.0.Media.IoAlign != 0 {
-            if (ptr as usize) % (self.0.Media.IoAlign as usize) != 0 {
-                if buffer.len() <= self.1.len() {
-                    ptr = self.1.as_mut_ptr();
-                } else {
-                    println!(
-                        "DiskEfi::read_at 0x{:X} requires alignment, ptr = 0x{:p}, len = 0x{:x}",
-                        block,
-                        ptr,
-                        buffer.len()
-                    );
-                    return Err(Error::new(EINVAL));
+            // Use aligned buffer if necessary
+            let mut ptr = buffer.as_mut_ptr();
+            if self.0.Media.IoAlign != 0 {
+                if (ptr as usize) % (self.0.Media.IoAlign as usize) != 0 {
+                    if buffer.len() <= self.1.len() {
+                        ptr = self.1.as_mut_ptr();
+                    } else {
+                        println!(
+                            "DiskEfi::read_at 0x{:X} requires alignment, ptr = 0x{:p}, len = 0x{:x}",
+                            block,
+                            ptr,
+                            buffer.len()
+                        );
+                        return Err(Error::new(EINVAL));
+                    }
                 }
             }
-        }
 
-        let block_size = self.0.Media.BlockSize as u64;
-        let lba = block * BLOCK_SIZE / block_size;
+            let block_size = self.0.Media.BlockSize as u64;
+            let lba = block * BLOCK_SIZE / block_size;
 
-        match (self.0.ReadBlocks)(self.0, self.0.Media.MediaId, lba, buffer.len(), ptr) {
-            status if status.is_success() => {
-                // Copy to original buffer if using aligned buffer
-                if ptr != buffer.as_mut_ptr() {
-                    let (left, _) = self.1.split_at(buffer.len());
-                    buffer.copy_from_slice(left);
+            match (self.0.ReadBlocks)(self.0, self.0.Media.MediaId, lba, buffer.len(), ptr) {
+                status if status.is_success() => {
+                    // Copy to original buffer if using aligned buffer
+                    if ptr != buffer.as_mut_ptr() {
+                        let (left, _) = self.1.split_at(buffer.len());
+                        buffer.copy_from_slice(left);
+                    }
+                    Ok(buffer.len())
                 }
-                Ok(buffer.len())
-            }
-            err => {
-                println!("DiskEfi::read_at 0x{:X} failed: {:?}", block, err);
-                Err(Error::new(EIO))
+                err => {
+                    println!("DiskEfi::read_at 0x{:X} failed: {:?}", block, err);
+                    Err(Error::new(EIO))
+                }
             }
         }
     }

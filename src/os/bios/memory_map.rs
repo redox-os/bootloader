@@ -3,7 +3,7 @@ use core::{cmp, mem, ptr};
 use crate::area_add;
 use crate::os::{OsMemoryEntry, OsMemoryKind};
 
-use super::{thunk::ThunkData, MEMORY_MAP_ADDR};
+use super::{MEMORY_MAP_ADDR, thunk::ThunkData};
 
 #[repr(C, packed)]
 struct MemoryMapEntry {

@@ -1,13 +1,13 @@
 use alloc::{string::String, vec, vec::Vec};
 use core::{fmt::Write, mem, ptr, slice};
 use uefi::{
+    Handle,
     device::{
         DevicePath, DevicePathAcpiType, DevicePathBbsType, DevicePathEndType,
         DevicePathHardwareType, DevicePathMediaType, DevicePathMessagingType, DevicePathType,
     },
     guid::Guid,
     status::Status,
-    Handle,
 };
 use uefi_std::{fs::FileSystem, loaded_image::LoadedImage, proto::Protocol};
 
@@ -322,18 +322,18 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                                     write!(s, "NVMe(0x{nsid:X})")
                                 } else {
                                     write!(
-                                    s,
-                                    "NVMe(0x{:X},{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X})",
-                                    nsid,
-                                    eui[0],
-                                    eui[1],
-                                    eui[2],
-                                    eui[3],
-                                    eui[4],
-                                    eui[5],
-                                    eui[6],
-                                    eui[7],
-                                )
+                                        s,
+                                        "NVMe(0x{:X},{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X}-{:02X})",
+                                        nsid,
+                                        eui[0],
+                                        eui[1],
+                                        eui[2],
+                                        eui[3],
+                                        eui[4],
+                                        eui[5],
+                                        eui[6],
+                                        eui[7],
+                                    )
                                 }
                             }
                             DevicePathMessagingType::Mac
@@ -385,21 +385,21 @@ pub fn device_path_to_string(device_path: &DevicePath) -> String {
                                                 as *const Guid)
                                         };
                                         write!(
-                                        s,
-                                        "HD(0x{:X},GPT,{:08X}-{:04X}-{:04X}-{:02X}{:02X}-{:02X}{:02X}{:02X}{:02X}{:02X}{:02X})",
-                                        partition_number,
-                                        guid.0,
-                                        guid.1,
-                                        guid.2,
-                                        guid.3[0],
-                                        guid.3[1],
-                                        guid.3[2],
-                                        guid.3[3],
-                                        guid.3[4],
-                                        guid.3[5],
-                                        guid.3[6],
-                                        guid.3[7],
-                                    )
+                                            s,
+                                            "HD(0x{:X},GPT,{:08X}-{:04X}-{:04X}-{:02X}{:02X}-{:02X}{:02X}{:02X}{:02X}{:02X}{:02X})",
+                                            partition_number,
+                                            guid.0,
+                                            guid.1,
+                                            guid.2,
+                                            guid.3[0],
+                                            guid.3[1],
+                                            guid.3[2],
+                                            guid.3[3],
+                                            guid.3[4],
+                                            guid.3[5],
+                                            guid.3[6],
+                                            guid.3[7],
+                                        )
                                     }
                                     _ => {
                                         write!(
