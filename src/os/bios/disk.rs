@@ -89,73 +89,75 @@ impl DiskBios {
 
 impl Disk for DiskBios {
     unsafe fn read_at(&mut self, block: u64, buffer: &mut [u8]) -> Result<usize> {
-        // Optimization for live disks
-        if let Some(live) = crate::LIVE_OPT {
-            if block >= live.0 {
-                let start = ((block - live.0) * BLOCK_SIZE) as usize;
-                let end = start + buffer.len();
-                if end <= live.1.len() {
-                    buffer.copy_from_slice(&live.1[start..end]);
-                    return Ok(buffer.len());
+        unsafe {
+            // Optimization for live disks
+            if let Some(live) = crate::LIVE_OPT {
+                if block >= live.0 {
+                    let start = ((block - live.0) * BLOCK_SIZE) as usize;
+                    let end = start + buffer.len();
+                    if end <= live.1.len() {
+                        buffer.copy_from_slice(&live.1[start..end]);
+                        return Ok(buffer.len());
+                    }
                 }
             }
-        }
 
-        for (i, chunk) in buffer
-            .chunks_mut((MAX_BLOCKS * BLOCK_SIZE) as usize)
-            .enumerate()
-        {
-            let dap = DiskAddressPacket::from_block(
-                block + i as u64 * MAX_BLOCKS,
-                chunk.len() as u64 / BLOCK_SIZE,
-            );
+            for (i, chunk) in buffer
+                .chunks_mut((MAX_BLOCKS * BLOCK_SIZE) as usize)
+                .enumerate()
+            {
+                let dap = DiskAddressPacket::from_block(
+                    block + i as u64 * MAX_BLOCKS,
+                    chunk.len() as u64 / BLOCK_SIZE,
+                );
 
-            if let Some((_, h_max, s_max)) = self.chs_opt {
-                let s = (dap.address % s_max as u64) + 1;
-                assert!(s <= 63, "invalid sector {s}");
+                if let Some((_, h_max, s_max)) = self.chs_opt {
+                    let s = (dap.address % s_max as u64) + 1;
+                    assert!(s <= 63, "invalid sector {s}");
 
-                let tmp = dap.address / s_max as u64;
-                let h = tmp % h_max as u64;
-                assert!(h <= 255, "invalid head {h}");
+                    let tmp = dap.address / s_max as u64;
+                    let h = tmp % h_max as u64;
+                    assert!(h <= 255, "invalid head {h}");
 
-                let c = tmp / h_max as u64;
-                assert!(c <= 1023, "invalid cylinder {c}");
+                    let c = tmp / h_max as u64;
+                    assert!(c <= 1023, "invalid cylinder {c}");
 
-                let mut data = ThunkData::new();
-                data.eax = 0x0200 | (dap.sectors as u32);
-                data.ebx = dap.buffer as u32;
-                data.ecx =
-                    (s as u32) | (((c as u32) & 0xFF) << 8) | ((((c as u32) >> 8) & 0x3) << 6);
-                data.edx = (self.boot_disk as u32) | ((h as u32) << 8);
-                data.es = dap.segment;
+                    let mut data = ThunkData::new();
+                    data.eax = 0x0200 | (dap.sectors as u32);
+                    data.ebx = dap.buffer as u32;
+                    data.ecx =
+                        (s as u32) | (((c as u32) & 0xFF) << 8) | ((((c as u32) >> 8) & 0x3) << 6);
+                    data.edx = (self.boot_disk as u32) | ((h as u32) << 8);
+                    data.es = dap.segment;
 
-                data.with(self.thunk13);
+                    data.with(self.thunk13);
 
-                //TODO: return result on error
-                let ah = ({ data.eax } >> 8) & 0xFF;
-                assert_eq!(ah, 0);
-            } else {
-                ptr::write(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket, dap);
+                    //TODO: return result on error
+                    let ah = ({ data.eax } >> 8) & 0xFF;
+                    assert_eq!(ah, 0);
+                } else {
+                    ptr::write(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket, dap);
 
-                let mut data = ThunkData::new();
-                data.eax = 0x4200;
-                data.edx = self.boot_disk as u32;
-                data.esi = DISK_ADDRESS_PACKET_ADDR as u32;
+                    let mut data = ThunkData::new();
+                    data.eax = 0x4200;
+                    data.edx = self.boot_disk as u32;
+                    data.esi = DISK_ADDRESS_PACKET_ADDR as u32;
 
-                data.with(self.thunk13);
+                    data.with(self.thunk13);
 
-                //TODO: return result on error
-                let ah = ({ data.eax } >> 8) & 0xFF;
-                assert_eq!(ah, 0);
+                    //TODO: return result on error
+                    let ah = ({ data.eax } >> 8) & 0xFF;
+                    assert_eq!(ah, 0);
 
-                //TODO: check blocks transferred
-                // dap = ptr::read(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket);
+                    //TODO: check blocks transferred
+                    // dap = ptr::read(DISK_ADDRESS_PACKET_ADDR as *mut DiskAddressPacket);
+                }
+
+                ptr::copy(DISK_BIOS_ADDR as *const u8, chunk.as_mut_ptr(), chunk.len());
             }
 
-            ptr::copy(DISK_BIOS_ADDR as *const u8, chunk.as_mut_ptr(), chunk.len());
+            Ok(buffer.len())
         }
-
-        Ok(buffer.len())
     }
 
     unsafe fn write_at(&mut self, block: u64, buffer: &[u8]) -> Result<usize> {

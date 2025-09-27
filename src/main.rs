@@ -44,6 +44,7 @@ static mut AREAS: [OsMemoryEntry; 1024] = [OsMemoryEntry {
 static mut AREAS_LEN: usize = 0;
 
 pub fn area_add(area: OsMemoryEntry) {
+    #[allow(static_mut_refs)]
     unsafe {
         for existing_area in &mut AREAS[0..AREAS_LEN] {
             if existing_area.kind == area.kind {
@@ -646,22 +647,19 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
         env_size = w.i;
     }
 
-    (
-        page_phys,
-        kernel_entry,
-        KernelArgs {
-            kernel_base: kernel.as_ptr() as u64,
-            kernel_size: kernel.len() as u64,
-            stack_base: stack_base as u64,
-            stack_size: stack_size as u64,
-            env_base: env_base as u64,
-            env_size: env_size as u64,
-            acpi_rsdp_base,
-            acpi_rsdp_size,
-            areas_base: unsafe { AREAS.as_ptr() as u64 },
-            areas_size: unsafe { (AREAS.len() * mem::size_of::<OsMemoryEntry>()) as u64 },
-            bootstrap_base,
-            bootstrap_size,
-        },
-    )
+    #[allow(static_mut_refs)]
+    (page_phys, kernel_entry, KernelArgs {
+        kernel_base: kernel.as_ptr() as u64,
+        kernel_size: kernel.len() as u64,
+        stack_base: stack_base as u64,
+        stack_size: stack_size as u64,
+        env_base: env_base as u64,
+        env_size: env_size as u64,
+        acpi_rsdp_base,
+        acpi_rsdp_size,
+        areas_base: unsafe { AREAS.as_ptr() as u64 },
+        areas_size: unsafe { (AREAS.len() * mem::size_of::<OsMemoryEntry>()) as u64 },
+        bootstrap_base,
+        bootstrap_size,
+    })
 }
