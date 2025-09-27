@@ -1,5 +1,5 @@
 use crate::area_add;
-use crate::os::{dtb::is_in_dev_mem_region, Os, OsMemoryEntry, OsMemoryKind};
+use crate::os::{Os, OsMemoryEntry, OsMemoryKind, dtb::is_in_dev_mem_region};
 use core::slice;
 
 pub(crate) const PF_PRESENT: u64 = 1 << 0;

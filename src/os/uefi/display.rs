@@ -1,6 +1,6 @@
 use std::proto::Protocol;
 use uefi::graphics::GraphicsOutput;
-use uefi::guid::{Guid, GRAPHICS_OUTPUT_PROTOCOL_GUID};
+use uefi::guid::{GRAPHICS_OUTPUT_PROTOCOL_GUID, Guid};
 
 pub struct Output(pub &'static mut GraphicsOutput);
 
@@ -14,12 +14,9 @@ impl Protocol<GraphicsOutput> for Output {
     }
 }
 
-const EDID_ACTIVE_PROTOCOL_GUID: Guid = Guid(
-    0xbd8c1056,
-    0x9f36,
-    0x44ec,
-    [0x92, 0xa8, 0xa6, 0x33, 0x7f, 0x81, 0x79, 0x86],
-);
+const EDID_ACTIVE_PROTOCOL_GUID: Guid = Guid(0xbd8c1056, 0x9f36, 0x44ec, [
+    0x92, 0xa8, 0xa6, 0x33, 0x7f, 0x81, 0x79, 0x86,
+]);
 
 #[allow(non_snake_case)]
 #[repr(C)]

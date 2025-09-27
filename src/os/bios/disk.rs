@@ -1,8 +1,8 @@
 use core::{mem, ptr};
-use redoxfs::{Disk, BLOCK_SIZE};
-use syscall::error::{Error, Result, EIO};
+use redoxfs::{BLOCK_SIZE, Disk};
+use syscall::error::{EIO, Error, Result};
 
-use super::{ThunkData, DISK_ADDRESS_PACKET_ADDR, DISK_BIOS_ADDR};
+use super::{DISK_ADDRESS_PACKET_ADDR, DISK_BIOS_ADDR, ThunkData};
 
 const SECTOR_SIZE: u64 = 512;
 const BLOCKS_PER_SECTOR: u64 = BLOCK_SIZE / SECTOR_SIZE;

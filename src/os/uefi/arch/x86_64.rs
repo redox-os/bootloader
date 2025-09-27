@@ -5,9 +5,9 @@ use x86::{
     msr,
 };
 
-use crate::{logger::LOGGER, KernelArgs};
+use crate::{KernelArgs, logger::LOGGER};
 
-use super::super::{memory_map::memory_map, OsEfi};
+use super::super::{OsEfi, memory_map::memory_map};
 
 unsafe extern "C" fn kernel_entry(
     page_phys: usize,

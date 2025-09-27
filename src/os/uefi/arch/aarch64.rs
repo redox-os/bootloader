@@ -2,12 +2,12 @@ use core::{arch::asm, fmt::Write, mem, slice};
 use uefi::status::Result;
 
 use crate::{
+    KernelArgs,
     arch::{ENTRY_ADDRESS_MASK, PAGE_ENTRIES, PF_PRESENT, PF_TABLE, PHYS_OFFSET},
     logger::LOGGER,
-    KernelArgs,
 };
 
-use super::super::{memory_map::memory_map, OsEfi};
+use super::super::{OsEfi, memory_map::memory_map};
 
 unsafe fn dump_page_tables(table_phys: u64, table_virt: u64, table_level: u64) {
     unsafe {

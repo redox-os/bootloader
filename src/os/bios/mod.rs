@@ -1,11 +1,11 @@
-use alloc::alloc::{alloc_zeroed, Layout};
+use alloc::alloc::{Layout, alloc_zeroed};
 use core::{convert::TryFrom, mem, ptr, slice};
 use linked_list_allocator::LockedHeap;
 use spin::Mutex;
 
+use crate::KernelArgs;
 use crate::logger::LOGGER;
 use crate::os::{Os, OsHwDesc, OsKey, OsVideoMode};
-use crate::KernelArgs;
 
 use self::disk::DiskBios;
 use self::memory_map::memory_map;

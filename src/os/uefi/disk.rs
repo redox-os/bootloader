@@ -1,10 +1,10 @@
 use alloc::vec::Vec;
 use core::slice;
-use redoxfs::{Disk, BLOCK_SIZE, RECORD_SIZE};
+use redoxfs::{BLOCK_SIZE, Disk, RECORD_SIZE};
 use std::proto::Protocol;
-use syscall::{Error, Result, EINVAL, EIO};
+use syscall::{EINVAL, EIO, Error, Result};
 use uefi::block_io::BlockIo as UefiBlockIo;
-use uefi::guid::{Guid, BLOCK_IO_GUID};
+use uefi::guid::{BLOCK_IO_GUID, Guid};
 
 pub enum DiskOrFileEfi {
     Disk(DiskEfi),
@@ -77,11 +77,11 @@ impl Disk for DiskEfi {
                         ptr = self.1.as_mut_ptr();
                     } else {
                         println!(
-                        "DiskEfi::read_at 0x{:X} requires alignment, ptr = 0x{:p}, len = 0x{:x}",
-                        block,
-                        ptr,
-                        buffer.len()
-                    );
+                            "DiskEfi::read_at 0x{:X} requires alignment, ptr = 0x{:p}, len = 0x{:x}",
+                            block,
+                            ptr,
+                            buffer.len()
+                        );
                         return Err(Error::new(EINVAL));
                     }
                 }

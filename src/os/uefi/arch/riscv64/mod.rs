@@ -1,8 +1,8 @@
+use crate::KernelArgs;
 use crate::arch::PHYS_OFFSET;
 use crate::logger::LOGGER;
-use crate::os::uefi::memory_map::memory_map;
 use crate::os::OsEfi;
-use crate::KernelArgs;
+use crate::os::uefi::memory_map::memory_map;
 use core::arch::asm;
 use core::mem;
 use uefi::status::Result;
