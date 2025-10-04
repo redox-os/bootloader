@@ -2,7 +2,7 @@ use core::arch::{global_asm, naked_asm};
 
 /// Unfortunately this can't be written in Rust because it might use some not-yet
 /// relocated data such as jump tables
-#[naked]
+#[unsafe(naked)]
 #[unsafe(no_mangle)]
 extern "C" fn coff_relocate(dynentry: *const u8, base: usize) -> usize {
     unsafe {
