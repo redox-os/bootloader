@@ -112,17 +112,20 @@ impl OsEfi {
                                     }
                                 }
 
-                                outputs.push((output, match EdidActive::handle_protocol(handle) {
-                                    Ok(efi_edid) => Some(efi_edid),
-                                    Err(err) => {
-                                        log::warn!(
-                                            "Failed to get EFI EDID from handle {:?}: {:?}",
-                                            handle,
-                                            err
-                                        );
-                                        None
-                                    }
-                                }));
+                                outputs.push((
+                                    output,
+                                    match EdidActive::handle_protocol(handle) {
+                                        Ok(efi_edid) => Some(efi_edid),
+                                        Err(err) => {
+                                            log::warn!(
+                                                "Failed to get EFI EDID from handle {:?}: {:?}",
+                                                handle,
+                                                err
+                                            );
+                                            None
+                                        }
+                                    },
+                                ));
                             }
                             Err(err) => {
                                 log::warn!(
