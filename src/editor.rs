@@ -95,7 +95,7 @@ pub fn edit_env(os: &impl Os, env_ptr: *mut u8, env_size: &mut usize, max_size: 
                 for i in (cursor_end..*env_size).rev() {
                     env_slice[i + 1] = env_slice[i];
                 }
-                env_slice[cursor_end] = c.to_ascii_uppercase() as u8;
+                env_slice[cursor_end] = c as u8;
                 *env_size += 1;
             }
             _ => (),
