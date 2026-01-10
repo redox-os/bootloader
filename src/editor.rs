@@ -22,13 +22,14 @@ pub fn edit_env(os: &impl Os, env_ptr: *mut u8, env_size: &mut usize, max_size: 
         os.set_text_position(0, 4);
 
         let mut iline = 0;
-        os.set_text_highlight(cursor == 0);
         for i in 0..*env_size {
             let c = env_slice[i] as char;
             if c == '\n' {
-                print!(" \n");
-                iline += 1;
                 os.set_text_highlight(iline == cursor);
+                print!(" ");
+                os.set_text_highlight(false);
+                print!("\n");
+                iline += 1;
                 if iline == cursor {
                     cursor_start = i + 1;
                 }
@@ -44,6 +45,7 @@ pub fn edit_env(os: &impl Os, env_ptr: *mut u8, env_size: &mut usize, max_size: 
             // update cursors, should never hang
             continue;
         }
+        os.set_text_highlight(iline == cursor);
         print!(" ");
         os.set_text_highlight(false);
 
@@ -68,7 +70,7 @@ pub fn edit_env(os: &impl Os, env_ptr: *mut u8, env_size: &mut usize, max_size: 
                 }
             }
             OsKey::Backspace => {
-                if cursor_end == 0 {
+                if cursor_end == 0 || *env_size == 0 {
                     continue;
                 }
                 if cursor_start == cursor_end && iline > 0 {
@@ -115,6 +117,5 @@ pub fn edit_env(os: &impl Os, env_ptr: *mut u8, env_size: &mut usize, max_size: 
         }
     }
 
-    os.set_text_highlight(false);
     println!("\nBooting...");
 }
