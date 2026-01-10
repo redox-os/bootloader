@@ -22,6 +22,7 @@ use self::os::{Os, OsHwDesc, OsKey, OsMemoryEntry, OsMemoryKind, OsVideoMode};
 mod os;
 
 mod arch;
+mod editor;
 mod logger;
 mod serial_16550;
 
@@ -107,7 +108,12 @@ pub struct KernelArgs {
     bootstrap_size: u64,
 }
 
-fn select_mode(os: &impl Os, output_i: usize, live: &mut bool) -> Option<OsVideoMode> {
+fn select_mode(
+    os: &impl Os,
+    output_i: usize,
+    live: &mut bool,
+    edit_env: &mut bool,
+) -> Option<OsVideoMode> {
     let mut modes = Vec::new();
     for mode in os.video_modes(output_i) {
         let mut aspect_w = mode.width;
@@ -156,6 +162,7 @@ fn select_mode(os: &impl Os, output_i: usize, live: &mut bool) -> Option<OsVideo
     } else {
         println!("Press l to  enable live mode");
     }
+    println!("Press e to edit boot environment");
     println!();
     print!(" ");
 
@@ -249,6 +256,15 @@ fn select_mode(os: &impl Os, output_i: usize, live: &mut bool) -> Option<OsVideo
                 } else {
                     println!("Press l to  enable live mode");
                 }
+            }
+            OsKey::Char('e') => {
+                if let Some(mode_i) = modes.iter().position(|x| x.0.id == selected) {
+                    if let Some((mode, _text)) = modes.get(mode_i) {
+                        *edit_env = true;
+                        mode_opt = Some(*mode);
+                    }
+                }
+                break;
             }
             _ => (),
         }
@@ -470,11 +486,12 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
 
     let mut mode_opts = Vec::new();
     let mut live = cfg!(feature = "live");
+    let mut edit_env = false;
     for output_i in 0..os.video_outputs() {
         if output_i > 0 {
             os.clear_text();
         }
-        mode_opts.push(select_mode(os, output_i, &mut live));
+        mode_opts.push(select_mode(os, output_i, &mut live, &mut edit_env));
     }
 
     let stack_size = 128 * KIBI;
@@ -548,7 +565,8 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
     let page_phys = unsafe { paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64) }
         .expect("Failed to set up paging");
 
-    let mut env_size = 64 * KIBI;
+    let max_env_size = 64 * KIBI;
+    let mut env_size = max_env_size;
     let env_base = os.alloc_zeroed_page_aligned(env_size);
     if env_base.is_null() {
         panic!("Failed to allocate memory for stack");
@@ -556,7 +574,7 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
 
     {
         let mut w = SliceWriter {
-            slice: unsafe { slice::from_raw_parts_mut(env_base, env_size) },
+            slice: unsafe { slice::from_raw_parts_mut(env_base, max_env_size) },
             i: 0,
         };
 
@@ -604,6 +622,9 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
                 .expect("Could not retrieve boot hart id from EFI implementation!");
             writeln!(w, "BOOT_HART_ID={:016x}", boot_hartid).unwrap();
         }
+        if edit_env {
+            editor::edit_env(os, env_base, &mut w.i, max_env_size);
+        }
 
         for output_i in 0..os.video_outputs() {
             if let Some(mut mode) = mode_opts[output_i] {
@@ -636,7 +657,6 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
                 }
             }
         }
-
         env_size = w.i;
     }
 
