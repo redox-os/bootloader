@@ -16,6 +16,7 @@ pub fn edit_env(os: &impl Os, env_ptr: *mut u8, env_size: &mut usize, max_size: 
     // position at current line, not including LF
     let mut cursor_start = 0;
     let mut cursor_end = 0;
+    let original_size = *env_size;
 
     loop {
         os.set_text_position(0, 4);
@@ -103,9 +104,14 @@ pub fn edit_env(os: &impl Os, env_ptr: *mut u8, env_size: &mut usize, max_size: 
 
     if *env_size == 0 || env_slice[*env_size - 1] != b'\n' {
         if *env_size < max_size {
-            // trailing LF
             env_slice[*env_size] = b'\n';
             *env_size += 1;
+        }
+    }
+
+    if *env_size < original_size {
+        for i in (*env_size..original_size).rev() {
+            env_slice[i] = 0;
         }
     }
 
