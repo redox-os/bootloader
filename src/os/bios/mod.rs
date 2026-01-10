@@ -215,7 +215,8 @@ impl Os for OsBios {
     }
 
     fn clear_text(&self) {
-        //TODO: clear screen for VGA
+        let mut vga = VGA.lock();
+        vga.clear();
     }
 
     fn get_text_position(&self) -> (usize, usize) {

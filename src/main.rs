@@ -622,6 +622,9 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
                 .expect("Could not retrieve boot hart id from EFI implementation!");
             writeln!(w, "BOOT_HART_ID={:016x}", boot_hartid).unwrap();
         }
+        if edit_env {
+            editor::edit_env(os, env_base, &mut w.i, max_env_size);
+        }
 
         for output_i in 0..os.video_outputs() {
             if let Some(mut mode) = mode_opts[output_i] {
@@ -654,11 +657,7 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
                 }
             }
         }
-
         env_size = w.i;
-        if edit_env {
-            editor::edit_env(os, env_base, &mut env_size, max_env_size);
-        }
     }
 
     #[allow(static_mut_refs)]
