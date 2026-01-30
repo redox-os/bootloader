@@ -184,13 +184,13 @@ impl Os for OsEfi {
         println!("Looking for RedoxFS:");
         for device in disk_device_priority() {
             if let Some(file_path) = device.file_path {
-                println!(
+                log::debug!(
                     " - {}\\{}",
                     device_path_to_string(device.device_path.0),
                     file_path
-                )
+                );
             } else {
-                println!(" - {}", device_path_to_string(device.device_path.0))
+                log::debug!(" - {}", device_path_to_string(device.device_path.0));
             }
 
             let block = device.partition_offset / redoxfs::BLOCK_SIZE;
