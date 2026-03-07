@@ -533,7 +533,7 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
     };
 
     let (kernel, kernel_entry) = {
-        let kernel = load_to_memory(os, &mut fs, "boot/kernel", Filetype::Elf);
+        let kernel = load_to_memory(os, &mut fs, "usr/lib/boot/kernel", Filetype::Elf);
         let (kernel_entry, kernel_64bit) = elf_entry(kernel);
         unsafe {
             KERNEL_64BIT = kernel_64bit;
@@ -542,7 +542,7 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
     };
 
     let (bootstrap_size, bootstrap_base) = {
-        let initfs_slice = load_to_memory(os, &mut fs, "boot/initfs", Filetype::Initfs);
+        let initfs_slice = load_to_memory(os, &mut fs, "usr/lib/boot/initfs", Filetype::Initfs);
 
         let memory = unsafe {
             let total_size = initfs_slice.len().next_multiple_of(4096);
