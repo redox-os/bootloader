@@ -13,7 +13,7 @@ use core::{
     fmt::{self, Write},
     mem, ptr, slice, str,
 };
-use redoxfs::Disk;
+use redoxfs::{Disk, Node, TreeData};
 
 use self::arch::{paging_create, paging_framebuffer};
 use self::os::{Os, OsHwDesc, OsKey, OsMemoryEntry, OsMemoryKind, OsVideoMode};
@@ -354,59 +354,52 @@ enum Filetype {
 fn load_to_memory<O: Os>(
     os: &O,
     fs: &mut redoxfs::FileSystem<O::D>,
-    dirname: &str,
-    filename: &str,
+    path: &str,
     filetype: Filetype,
 ) -> &'static mut [u8] {
     fs.tx(|tx| {
-        let dir_node = tx
-            .find_node(redoxfs::TreePtr::root(), dirname)
-            .unwrap_or_else(|err| panic!("Failed to find {} directory: {}", dirname, err));
-
-        let node = tx
-            .find_node(dir_node.ptr(), filename)
-            .unwrap_or_else(|err| panic!("Failed to find {} file: {}", filename, err));
+        let mut node = None;
+        for component in path.split('/') {
+            node = Some(
+                tx.find_node(
+                    node.map_or(redoxfs::TreePtr::root(), |node: TreeData<Node>| node.ptr()),
+                    component,
+                )
+                .unwrap_or_else(|err| panic!("Failed to find {component}: {err}")),
+            );
+        }
+        let node = node.unwrap();
 
         let size = node.data().size();
 
-        print!("{}: 0/{} MiB", filename, size / MIBI as u64);
+        print!("{}: 0/{} MiB", path, size / MIBI as u64);
 
         let ptr = os.alloc_zeroed_page_aligned(size as usize);
         if ptr.is_null() {
-            panic!("Failed to allocate memory for {}", filename);
+            panic!("Failed to allocate memory for {}", path);
         }
 
         let slice = unsafe { slice::from_raw_parts_mut(ptr, size as usize) };
 
         let mut i = 0;
         for chunk in slice.chunks_mut(MIBI) {
-            print!(
-                "\r{}: {}/{} MiB",
-                filename,
-                i / MIBI as u64,
-                size / MIBI as u64
-            );
+            print!("\r{}: {}/{} MiB", path, i / MIBI as u64, size / MIBI as u64);
             i += tx
                 .read_node_inner(&node, i, chunk)
-                .unwrap_or_else(|err| panic!("Failed to read `{}` file: {}", filename, err))
+                .unwrap_or_else(|err| panic!("Failed to read `{}` file: {}", path, err))
                 as u64;
         }
-        println!(
-            "\r{}: {}/{} MiB",
-            filename,
-            i / MIBI as u64,
-            size / MIBI as u64
-        );
+        println!("\r{}: {}/{} MiB", path, i / MIBI as u64, size / MIBI as u64);
 
         if filetype == Filetype::Elf {
             let magic = &slice[..4];
             if magic != b"\x7FELF" {
-                panic!("{} has invalid magic number {:#X?}", filename, magic);
+                panic!("{} has invalid magic number {:#X?}", path, magic);
             }
         } else if filetype == Filetype::Initfs {
             let magic = &slice[..8];
             if magic != b"RedoxFtw" {
-                panic!("{} has invalid magic number {:#X?}", filename, magic);
+                panic!("{} has invalid magic number {:#X?}", path, magic);
             }
         }
 
@@ -415,7 +408,7 @@ fn load_to_memory<O: Os>(
     .unwrap_or_else(|err| {
         panic!(
             "RedoxFS transaction failed while loading `{}`: {}",
-            filename, err
+            path, err
         )
     })
 }
@@ -540,7 +533,7 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
     };
 
     let (kernel, kernel_entry) = {
-        let kernel = load_to_memory(os, &mut fs, "boot", "kernel", Filetype::Elf);
+        let kernel = load_to_memory(os, &mut fs, "boot/kernel", Filetype::Elf);
         let (kernel_entry, kernel_64bit) = elf_entry(kernel);
         unsafe {
             KERNEL_64BIT = kernel_64bit;
@@ -549,7 +542,7 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
     };
 
     let (bootstrap_size, bootstrap_base) = {
-        let initfs_slice = load_to_memory(os, &mut fs, "boot", "initfs", Filetype::Initfs);
+        let initfs_slice = load_to_memory(os, &mut fs, "boot/initfs", Filetype::Initfs);
 
         let memory = unsafe {
             let total_size = initfs_slice.len().next_multiple_of(4096);
