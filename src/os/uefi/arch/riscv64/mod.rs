@@ -1,5 +1,6 @@
 use crate::KernelArgs;
 use crate::arch::PHYS_OFFSET;
+use crate::arch::SATP_BITS;
 use crate::logger::LOGGER;
 use crate::os::OsEfi;
 use crate::os::uefi::memory_map::memory_map;
@@ -21,9 +22,9 @@ unsafe extern "C" fn kernel_entry(
     unsafe {
         // Set page tables
         asm!(
-        "sfence.vma",
         "csrw satp, {0}",
-        in(reg) (page_phys >> 12 | 9 << 60) // Sv48 mode
+        "sfence.vma",
+        in(reg) (page_phys >> 12 | SATP_BITS << 60)
         );
 
         let entry_fn: extern "C" fn(*const KernelArgs) -> ! = mem::transmute(func);
