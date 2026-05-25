@@ -20,7 +20,7 @@ $(BUILD)/%.efi.elf: $(BUILD)/%.a $(SCRIPT)
 
 $(BUILD)/bootloader.a: $(SOURCE)/Cargo.toml $(SOURCE)/Cargo.lock $(shell find $(SOURCE)/src -type f)
 	mkdir -p "$(BUILD)"
-	env RUSTFLAGS="--cfg aes_force_soft" \
+	env RUSTFLAGS="--cfg aes_force_soft -Zunstable-options" \
 	cargo rustc \
 		--manifest-path="$<" \
 		-Z build-std=core,alloc \
@@ -33,7 +33,7 @@ $(BUILD)/bootloader.a: $(SOURCE)/Cargo.toml $(SOURCE)/Cargo.lock $(shell find $(
 
 $(BUILD)/bootloader-live.a: $(SOURCE)/Cargo.toml $(SOURCE)/Cargo.lock $(shell find $(SOURCE)/src -type f)
 	mkdir -p "$(BUILD)"
-	env RUSTFLAGS="--cfg aes_force_soft" \
+	env RUSTFLAGS="--cfg aes_force_soft -Zunstable-options" \
 	cargo rustc \
 		--manifest-path="$<" \
 		-Z build-std=core,alloc \
