@@ -2,7 +2,9 @@ TARGET?=x86_64-unknown-uefi
 SOURCE:=$(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 BUILD:=$(CURDIR)
 export RUST_TARGET_PATH?=$(SOURCE)/targets
-
+CARGO_ARGS=--release --locked --target $(TARGET) \
+			-Z build-std=core,alloc \
+			-Z build-std-features=compiler-builtins-mem
 
 include $(SOURCE)/mk/$(TARGET).mk
 

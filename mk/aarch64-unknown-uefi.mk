@@ -8,11 +8,8 @@ $(BUILD)/bootloader.efi: $(SOURCE)/Cargo.toml $(SOURCE)/Cargo.lock $(shell find 
 	env RUSTFLAGS="--cfg aes_force_soft -Zunstable-options" \
 	cargo rustc \
 		--manifest-path="$<" \
-		-Z build-std=core,alloc \
-		-Z build-std-features=compiler-builtins-mem \
-		--target $(TARGET) \
+		$(CARGO_ARGS) \
 		--bin bootloader \
-		--release \
 		-- \
 		--emit link="$@"
 
@@ -21,11 +18,8 @@ $(BUILD)/bootloader-live.efi: $(SOURCE)/Cargo.toml $(SOURCE)/Cargo.lock $(shell 
 	env RUSTFLAGS="--cfg aes_force_soft -Zunstable-options" \
 	cargo rustc \
 		--manifest-path="$<" \
-		-Z build-std=core,alloc \
-		-Z build-std-features=compiler-builtins-mem \
-		--target $(TARGET) \
+		$(CARGO_ARGS) \
 		--bin bootloader \
-		--release \
 		--features live \
 		-- \
 		--emit link="$@"
