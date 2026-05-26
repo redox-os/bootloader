@@ -358,13 +358,3 @@ dependencies = [
  "byteorder",
  "cipher",
 ]
-
-[[patch.unused]]
-name = "redox-rt"
-version = "0.1.0"
-source = "git+https://gitlab.redox-os.org/aarch/relibc.git#c4bc54b0dd0ce9371a6cf215212d52037edc33ce"
-
-[[patch.unused]]
-name = "relibc"
-version = "0.2.5"
-source = "git+https://gitlab.redox-os.org/aarch/relibc.git#c4bc54b0dd0ce9371a6cf215212d52037edc33ce"
