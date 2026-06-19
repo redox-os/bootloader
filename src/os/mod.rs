@@ -66,6 +66,7 @@ pub struct OsVideoMode {
 pub trait Os {
     type D: Disk;
     type V: Iterator<Item = OsVideoMode>;
+    type E: core::fmt::Debug;
 
     fn name(&self) -> &str;
 
@@ -86,7 +87,7 @@ pub trait Os {
     fn set_video_mode(&self, output_i: usize, mode: &mut OsVideoMode);
     fn best_resolution(&self, output_i: usize) -> Option<(u32, u32)>;
 
-    fn get_key(&self) -> OsKey;
+    fn get_key(&self) -> Result<OsKey, Self::E>;
 
     fn clear_text(&self);
     fn get_text_position(&self) -> (usize, usize);

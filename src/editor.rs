@@ -49,7 +49,8 @@ pub fn edit_env(os: &impl Os, env_ptr: *mut u8, env_size: &mut usize, max_size: 
         print!(" ");
         os.set_text_highlight(false);
 
-        match os.get_key() {
+        // TODO: do not unwrap
+        match os.get_key().unwrap() {
             OsKey::Enter => {
                 if cursor_start == cursor_end {
                     // blank line to boot

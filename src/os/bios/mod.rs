@@ -1,5 +1,8 @@
 use alloc::alloc::{Layout, alloc_zeroed};
-use core::{convert::TryFrom, mem, ptr, slice};
+use core::{
+    convert::{Infallible, TryFrom},
+    mem, ptr, slice,
+};
 use linked_list_allocator::LockedHeap;
 use spin::Mutex;
 
@@ -99,6 +102,7 @@ unsafe fn search_rsdp(start: usize, end: usize) -> Option<(u64, u64)> {
 impl Os for OsBios {
     type D = DiskBios;
     type V = VideoModeIter;
+    type E = Infallible;
 
     fn name(&self) -> &str {
         "x86/BIOS"
@@ -193,13 +197,13 @@ impl Os for OsBios {
         }
     }
 
-    fn get_key(&self) -> OsKey {
+    fn get_key(&self) -> Result<OsKey, Self::E> {
         // Read keypress
         let mut data = ThunkData::new();
         unsafe {
             data.with(self.thunk16);
         }
-        match (data.eax >> 8) as u8 {
+        Ok(match (data.eax >> 8) as u8 {
             0x4B => OsKey::Left,
             0x4D => OsKey::Right,
             0x48 => OsKey::Up,
@@ -211,7 +215,7 @@ impl Os for OsBios {
                 0 => OsKey::Other,
                 b => OsKey::Char(b as char),
             },
-        }
+        })
     }
 
     fn clear_text(&self) {

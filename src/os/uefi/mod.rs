@@ -152,6 +152,7 @@ impl OsEfi {
 impl Os for OsEfi {
     type D = DiskOrFileEfi;
     type V = VideoModeIter;
+    type E = Status;
 
     #[cfg(target_arch = "aarch64")]
     fn name(&self) -> &str {
@@ -290,28 +291,37 @@ impl Os for OsEfi {
         ))
     }
 
-    fn get_key(&self) -> OsKey {
-        //TODO: do not unwrap
-
+    fn get_key(&self) -> Result<OsKey> {
+        // Should not error unless due to programming error
+        // https://uefi.org/specs/UEFI/2.10/07_Services_Boot_Services.html#efi-boot-services-waitforevent
         let mut index = 0;
         status_to_result((self.st.BootServices.WaitForEvent)(
             1,
             &self.st.ConsoleIn.WaitForKey,
             &mut index,
-        ))
-        .unwrap();
+        ))?;
 
         let mut key = TextInputKey {
             ScanCode: 0,
             UnicodeChar: 0,
         };
+
+        // Can return hardware errors as DEVICE_ERROR
+        // https://uefi.org/specs/UEFI/2.10/12_Protocols_Console_Support.html?highlight=readkeystroke#efi-simple-text-input-protocol-readkeystroke
         status_to_result((self.st.ConsoleIn.ReadKeyStroke)(
             self.st.ConsoleIn,
             &mut key,
-        ))
-        .unwrap();
+        ))?;
 
-        match key.ScanCode {
+        #[cfg(feature = "input_error_injection")]
+        {
+            if key.ScanCode == 0x14 {
+                // F10 to debug
+                return Err(Status::DEVICE_ERROR);
+            }
+        }
+
+        Ok(match key.ScanCode {
             0 => match key.UnicodeChar {
                 8 => OsKey::Backspace,
                 13 => OsKey::Enter,
@@ -326,7 +336,7 @@ impl Os for OsEfi {
             4 => OsKey::Left,
             8 => OsKey::Delete,
             _ => OsKey::Other,
-        }
+        })
     }
 
     fn clear_text(&self) {
