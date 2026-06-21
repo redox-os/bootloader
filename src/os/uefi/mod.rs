@@ -180,6 +180,8 @@ impl Os for OsEfi {
         &self,
         password_opt: Option<&[u8]>,
     ) -> syscall::Result<redoxfs::FileSystem<DiskOrFileEfi>> {
+        let mut seen_enokey = false;
+
         // Search for RedoxFS on disks in prioritized order
         println!("Looking for RedoxFS:");
         for device in disk_device_priority() {
@@ -200,12 +202,19 @@ impl Os for OsEfi {
                 Err(err) => match err.errno {
                     // Ignore header not found error
                     syscall::ENOENT => (),
+                    // Bubble ENOKEY up later if we can't find another partition to return
+                    syscall::ENOKEY => seen_enokey = true,
                     // Print any other errors
                     _ => {
                         log::warn!("BlockIo error: {:?}", err);
                     }
                 },
             }
+        }
+
+        // Let the caller prompt for a password
+        if seen_enokey {
+            return Err(syscall::Error::new(syscall::ENOKEY));
         }
 
         log::warn!("No RedoxFS partitions found");
