@@ -4,7 +4,7 @@ use redoxfs::{BLOCK_SIZE, Disk, RECORD_SIZE};
 use std::proto::Protocol;
 use syscall::{EINVAL, EIO, Error, Result};
 use uefi::block_io::BlockIo as UefiBlockIo;
-use uefi::guid::{BLOCK_IO_GUID, Guid};
+use uefi::guid::Guid;
 
 pub enum DiskOrFileEfi {
     Disk(DiskEfi),
@@ -40,7 +40,7 @@ pub struct DiskEfi(pub &'static mut UefiBlockIo, &'static mut [u8]);
 
 impl Protocol<UefiBlockIo> for DiskEfi {
     fn guid() -> Guid {
-        BLOCK_IO_GUID
+        UefiBlockIo::GUID
     }
 
     fn new(inner: &'static mut UefiBlockIo) -> Self {

@@ -1,12 +1,12 @@
 use std::proto::Protocol;
 use uefi::graphics::GraphicsOutput;
-use uefi::guid::{GRAPHICS_OUTPUT_PROTOCOL_GUID, Guid};
+use uefi::guid::Guid;
 
 pub struct Output(pub &'static mut GraphicsOutput);
 
 impl Protocol<GraphicsOutput> for Output {
     fn guid() -> Guid {
-        GRAPHICS_OUTPUT_PROTOCOL_GUID
+        GraphicsOutput::GUID
     }
 
     fn new(inner: &'static mut GraphicsOutput) -> Self {
