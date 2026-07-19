@@ -4,9 +4,13 @@ use core::{mem, ptr};
 use uefi::memory::{MemoryDescriptor, MemoryType};
 
 use crate::area_add;
+#[cfg(target_arch = "aarch64")]
+use crate::os::{OsMemoryAttribute, OsMemoryAttributeRange};
 use crate::os::{OsMemoryEntry, OsMemoryKind};
 
 use super::status_to_result;
+
+const UEFI_PAGE_SIZE: u64 = 4096;
 
 pub struct MemoryMapIter {
     map: Vec<u8>,
@@ -96,6 +100,92 @@ impl MemoryMapIter {
     }
 }
 
+/// Take a snapshot of the cacheability information needed by the AArch64
+/// bootstrap page table. Page-table allocations performed afterward may
+/// change the UEFI map, so this snapshot's map key must not be used by
+/// ExitBootServices.
+#[cfg(target_arch = "aarch64")]
+pub(crate) fn memory_attribute_ranges() -> Vec<OsMemoryAttributeRange> {
+    const EFI_MEMORY_UC: u64 = 1 << 0;
+    const EFI_MEMORY_WC: u64 = 1 << 1;
+    const EFI_MEMORY_WT: u64 = 1 << 2;
+    const EFI_MEMORY_WB: u64 = 1 << 3;
+    const EFI_CACHEABILITY_MASK: u64 =
+        EFI_MEMORY_UC | EFI_MEMORY_WC | EFI_MEMORY_WT | EFI_MEMORY_WB;
+
+    let memory_map = MemoryMapIter::new();
+    let mut ranges = Vec::<OsMemoryAttributeRange>::with_capacity(
+        memory_map.map.len() / memory_map.descriptor_size,
+    );
+
+    for i in 0..memory_map.map.len() / memory_map.descriptor_size {
+        let descriptor_ptr = unsafe { memory_map.map.as_ptr().add(i * memory_map.descriptor_size) };
+        let descriptor = unsafe { ptr::read(descriptor_ptr as *const MemoryDescriptor) };
+        let start = descriptor.PhysicalStart.0;
+        let end = start.saturating_add(descriptor.NumberOfPages.saturating_mul(UEFI_PAGE_SIZE));
+        if start == end {
+            continue;
+        }
+
+        let fallback_write_back = matches!(
+            descriptor.Type,
+            value if value == MemoryType::EfiLoaderCode as u32
+                || value == MemoryType::EfiLoaderData as u32
+                || value == MemoryType::EfiBootServicesCode as u32
+                || value == MemoryType::EfiBootServicesData as u32
+                || value == MemoryType::EfiRuntimeServicesCode as u32
+                || value == MemoryType::EfiRuntimeServicesData as u32
+                || value == MemoryType::EfiConventionalMemory as u32
+        );
+        // GetMemoryMap reports supported cacheability classes rather than
+        // necessarily the class currently selected by the firmware. Prefer
+        // the strongest standard AArch64 mapping advertised for the range.
+        // TODO: Honor EFI_MEMORY_ISA_VALID and EFI_MEMORY_ISA_MASK when the
+        // page-table code can allocate arbitrary MAIR entries.
+        let attribute = if descriptor.Attribute & EFI_MEMORY_WB != 0 {
+            OsMemoryAttribute::NormalWriteBack
+        } else if descriptor.Attribute & EFI_MEMORY_WT != 0 {
+            OsMemoryAttribute::NormalWriteThrough
+        } else if descriptor.Attribute & EFI_MEMORY_WC != 0 {
+            OsMemoryAttribute::NormalNonCacheable
+        } else if descriptor.Attribute & EFI_MEMORY_UC != 0 {
+            OsMemoryAttribute::Device
+        } else if descriptor.Attribute & EFI_CACHEABILITY_MASK == 0 && fallback_write_back {
+            // Some non-conforming firmware omits cacheability attributes.
+            // Preserve the established treatment of ordinary RAM in that
+            // case. Reserved, MMIO, ACPI, and persistent memory remain Device
+            // unless the firmware explicitly advertises another attribute.
+            OsMemoryAttribute::NormalWriteBack
+        } else {
+            OsMemoryAttribute::Device
+        };
+
+        ranges.push(OsMemoryAttributeRange {
+            base: start,
+            size: end - start,
+            attribute,
+        });
+    }
+
+    ranges.sort_unstable_by_key(|range| range.base);
+
+    let mut merged = Vec::<OsMemoryAttributeRange>::new();
+    for range in ranges {
+        let range_end = range.base.saturating_add(range.size);
+        if let Some(last) = merged.last_mut()
+            && last.attribute == range.attribute
+            && range.base <= last.base.saturating_add(last.size)
+        {
+            let last_end = last.base.saturating_add(last.size);
+            last.size = last_end.max(range_end) - last.base;
+        } else {
+            merged.push(range);
+        }
+    }
+
+    merged
+}
+
 impl Iterator for MemoryMapIter {
     type Item = OsMemoryEntry;
     fn next(&mut self) -> Option<Self::Item> {
@@ -108,8 +198,7 @@ impl Iterator for MemoryMapIter {
 
             Some(OsMemoryEntry {
                 base: descriptor.PhysicalStart.0,
-                //TODO: do not hard code page size
-                size: descriptor.NumberOfPages * 4096,
+                size: descriptor.NumberOfPages * UEFI_PAGE_SIZE,
                 kind: match descriptor_type {
                     MemoryType::EfiLoaderCode
                     | MemoryType::EfiLoaderData

@@ -183,6 +183,11 @@ impl Os for OsEfi {
         page_size()
     }
 
+    #[cfg(target_arch = "aarch64")]
+    fn memory_attribute_ranges(&self) -> Vec<crate::os::OsMemoryAttributeRange> {
+        memory_map::memory_attribute_ranges()
+    }
+
     fn filesystem(
         &self,
         password_opt: Option<&[u8]>,
