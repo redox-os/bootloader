@@ -45,10 +45,9 @@ pub(crate) fn alloc_zeroed_page_aligned(size: usize) -> *mut u8 {
     let pages = size.div_ceil(page_size);
 
     let ptr = {
-        // Max address mapped by src/arch paging code (8 GiB)
-        let mut ptr = 0x2_0000_0000;
+        let mut ptr = 0;
         status_to_result((std::system_table().BootServices.AllocatePages)(
-            1,                                  // AllocateMaxAddress
+            0,                                  // AllocateAnyPages
             MemoryType::EfiRuntimeServicesData, // Keeps this memory out of free space list
             pages,
             &mut ptr,
@@ -56,6 +55,14 @@ pub(crate) fn alloc_zeroed_page_aligned(size: usize) -> *mut u8 {
         .unwrap();
         ptr as *mut u8
     };
+
+    // FIXME identity map as much memory as necessary when creating page tables
+    // or remove the need for the identity mapped region in favor of only
+    // creating the kernel mapping.
+    assert!(
+        ptr.addr() + size <= 0x2_0000_0000,
+        "memory got allocated above 8GiB identity mapped region",
+    );
 
     assert!(!ptr.is_null());
     unsafe { ptr::write_bytes(ptr, 0, pages * page_size) };
