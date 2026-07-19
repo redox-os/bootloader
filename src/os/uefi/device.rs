@@ -452,19 +452,7 @@ pub struct DevicePathProtocol(pub &'static mut DevicePath);
 
 impl Protocol<DevicePath> for DevicePathProtocol {
     fn guid() -> Guid {
-        uefi::guid::DEVICE_PATH_GUID
-    }
-
-    fn new(inner: &'static mut DevicePath) -> Self {
-        Self(inner)
-    }
-}
-
-pub struct LoadedImageDevicePathProtocol(pub &'static mut DevicePath);
-
-impl Protocol<DevicePath> for LoadedImageDevicePathProtocol {
-    fn guid() -> Guid {
-        uefi::guid::LOADED_IMAGE_DEVICE_PATH_GUID
+        DevicePath::GUID
     }
 
     fn new(inner: &'static mut DevicePath) -> Self {
