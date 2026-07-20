@@ -1,5 +1,8 @@
 use redoxfs::Disk;
 
+#[cfg(target_arch = "aarch64")]
+use alloc::vec::Vec;
+
 #[cfg(all(target_arch = "x86", target_os = "none"))]
 pub use self::bios::*;
 
@@ -14,6 +17,23 @@ pub use self::uefi::*;
 #[cfg(any(target_arch = "riscv64", target_os = "uefi"))]
 #[macro_use]
 mod uefi;
+
+#[cfg(target_arch = "aarch64")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OsMemoryAttribute {
+    Device,
+    NormalNonCacheable,
+    NormalWriteThrough,
+    NormalWriteBack,
+}
+
+#[cfg(target_arch = "aarch64")]
+#[derive(Clone, Copy, Debug)]
+pub struct OsMemoryAttributeRange {
+    pub base: u64,
+    pub size: u64,
+    pub attribute: OsMemoryAttribute,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum OsHwDesc {
@@ -73,6 +93,9 @@ pub trait Os {
 
     #[allow(dead_code)]
     fn page_size(&self) -> usize;
+
+    #[cfg(target_arch = "aarch64")]
+    fn memory_attribute_ranges(&self) -> Vec<OsMemoryAttributeRange>;
 
     fn filesystem(
         &self,

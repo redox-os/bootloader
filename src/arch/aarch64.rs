@@ -1,19 +1,29 @@
 use crate::area_add;
-use crate::os::{Os, OsMemoryEntry, OsMemoryKind, dtb::is_in_dev_mem_region};
+use crate::os::{Os, OsMemoryAttribute, OsMemoryAttributeRange, OsMemoryEntry, OsMemoryKind};
 use core::slice;
 
 pub(crate) const PF_PRESENT: u64 = 1 << 0;
+// Bit 1 selects a table entry for L0-L2 and a page entry for L3.
 pub(crate) const PF_TABLE: u64 = 1 << 1;
+pub(crate) const PF_PAGE: u64 = 1 << 1;
 pub(crate) const PF_OUTER_SHAREABLE: u64 = 0b01 << 8;
 pub(crate) const PF_INNER_SHAREABLE: u64 = 0b11 << 8;
 pub(crate) const PF_ACCESS: u64 = 1 << 10;
 
-pub(crate) const PF_DEV: u64 = PF_OUTER_SHAREABLE | 2 << 2;
-pub(crate) const PF_RAM: u64 = PF_INNER_SHAREABLE;
+const ATTR_INDEX_NORMAL_WB: u64 = 0 << 2;
+const ATTR_INDEX_NORMAL_NC: u64 = 1 << 2;
+const ATTR_INDEX_DEVICE: u64 = 2 << 2;
+const ATTR_INDEX_NORMAL_WT: u64 = 3 << 2;
+
+pub(crate) const PF_NORMAL_WB: u64 = PF_INNER_SHAREABLE | ATTR_INDEX_NORMAL_WB;
+pub(crate) const PF_NORMAL_NC: u64 = PF_INNER_SHAREABLE | ATTR_INDEX_NORMAL_NC;
+pub(crate) const PF_DEV: u64 = PF_OUTER_SHAREABLE | ATTR_INDEX_DEVICE;
+pub(crate) const PF_NORMAL_WT: u64 = PF_INNER_SHAREABLE | ATTR_INDEX_NORMAL_WT;
 
 pub(crate) const ENTRY_ADDRESS_MASK: u64 = 0x000F_FFFF_FFFF_F000;
 pub(crate) const PAGE_ENTRIES: usize = 512;
 const PAGE_SIZE: usize = 4096;
+const L2_BLOCK_SIZE: u64 = 2 * 1024 * 1024;
 pub(crate) const PHYS_OFFSET: u64 = 0xFFFF_8000_0000_0000;
 
 unsafe fn paging_allocate(os: &impl Os) -> Option<&'static mut [u64]> {
@@ -32,8 +42,41 @@ unsafe fn paging_allocate(os: &impl Os) -> Option<&'static mut [u64]> {
     }
 }
 
+fn page_flags(attribute: OsMemoryAttribute) -> u64 {
+    match attribute {
+        OsMemoryAttribute::Device => PF_DEV,
+        OsMemoryAttribute::NormalNonCacheable => PF_NORMAL_NC,
+        OsMemoryAttribute::NormalWriteThrough => PF_NORMAL_WT,
+        OsMemoryAttribute::NormalWriteBack => PF_NORMAL_WB,
+    }
+}
+
+fn range_attribute(
+    ranges: &[OsMemoryAttributeRange],
+    start: u64,
+    end: u64,
+) -> Option<OsMemoryAttribute> {
+    if let Some(range) = ranges
+        .iter()
+        .find(|range| range.base <= start && end <= range.base.saturating_add(range.size))
+    {
+        return Some(range.attribute);
+    }
+
+    if ranges
+        .iter()
+        .any(|range| start < range.base.saturating_add(range.size) && range.base < end)
+    {
+        None
+    } else {
+        Some(OsMemoryAttribute::Device)
+    }
+}
+
 pub unsafe fn paging_create(os: &impl Os, kernel_phys: u64, kernel_size: u64) -> Option<usize> {
     unsafe {
+        let memory_attribute_ranges = os.memory_attribute_ranges();
+
         // Create L0
         let l0 = paging_allocate(os)?;
 
@@ -45,11 +88,36 @@ pub unsafe fn paging_create(os: &impl Os, kernel_phys: u64, kernel_size: u64) ->
             l0[0] = l1.as_ptr() as u64 | PF_ACCESS | PF_TABLE | PF_PRESENT;
             l0[256] = l1.as_ptr() as u64 | PF_ACCESS | PF_TABLE | PF_PRESENT;
 
-            // Identity map 8 GiB using 1 GiB pages
+            // Identity-map 8 GiB while preserving the cacheability classes
+            // supplied by the boot environment. Use 2 MiB blocks normally
+            // and 4 KiB pages only where an attribute boundary crosses a
+            // block. Addresses absent from the map remain Device.
             for l1_i in 0..8 {
-                let addr = l1_i as u64 * 0x4000_0000;
-                //TODO: is PF_RAM okay?
-                l1[l1_i] = addr | PF_ACCESS | PF_DEV | PF_PRESENT;
+                let l2 = paging_allocate(os)?;
+                l1[l1_i] = l2.as_ptr() as u64 | PF_ACCESS | PF_TABLE | PF_PRESENT;
+
+                for (l2_i, entry) in l2.iter_mut().enumerate() {
+                    let addr = l1_i as u64 * 0x4000_0000 + l2_i as u64 * L2_BLOCK_SIZE;
+                    let end = addr + L2_BLOCK_SIZE;
+                    if let Some(attribute) = range_attribute(&memory_attribute_ranges, addr, end) {
+                        *entry = addr | PF_ACCESS | page_flags(attribute) | PF_PRESENT;
+                    } else {
+                        let l3 = paging_allocate(os)?;
+                        *entry = l3.as_ptr() as u64 | PF_ACCESS | PF_TABLE | PF_PRESENT;
+                        for (l3_i, page) in l3.iter_mut().enumerate() {
+                            let page_addr = addr + l3_i as u64 * PAGE_SIZE as u64;
+                            let page_end = page_addr + PAGE_SIZE as u64;
+                            let attribute =
+                                range_attribute(&memory_attribute_ranges, page_addr, page_end)
+                                    .expect("memory attribute boundary is not page-aligned");
+                            *page = page_addr
+                                | PF_ACCESS
+                                | page_flags(attribute)
+                                | PF_PAGE
+                                | PF_PRESENT;
+                        }
+                    }
+                }
             }
         }
 
@@ -77,7 +145,18 @@ pub unsafe fn paging_create(os: &impl Os, kernel_phys: u64, kernel_size: u64) ->
                     let mut l3_i = 0;
                     while kernel_mapped < kernel_size && l3_i < l3.len() {
                         let addr = kernel_phys + kernel_mapped;
-                        l3[l3_i] = addr | PF_ACCESS | PF_RAM | PF_TABLE | PF_PRESENT;
+                        let attribute = range_attribute(
+                            &memory_attribute_ranges,
+                            addr,
+                            addr + PAGE_SIZE as u64,
+                        )
+                        .expect("kernel memory attribute boundary is not page-aligned");
+                        assert_ne!(
+                            attribute,
+                            OsMemoryAttribute::Device,
+                            "kernel image was allocated in Device memory"
+                        );
+                        l3[l3_i] = addr | PF_ACCESS | page_flags(attribute) | PF_PAGE | PF_PRESENT;
                         l3_i += 1;
                         kernel_mapped += PAGE_SIZE as u64;
                     }
@@ -101,6 +180,8 @@ pub unsafe fn paging_framebuffer(
         if framebuffer_phys + framebuffer_size <= 0x2_0000_0000 {
             return Some(framebuffer_phys + PHYS_OFFSET);
         }
+
+        let memory_attribute_ranges = os.memory_attribute_ranges();
 
         let l0_i = ((framebuffer_phys / 0x80_0000_0000) + 256) as usize;
         let mut l1_i = ((framebuffer_phys % 0x80_0000_0000) / 0x4000_0000) as usize;
@@ -134,8 +215,10 @@ pub unsafe fn paging_framebuffer(
                 while framebuffer_mapped < framebuffer_size && l3_i < l3.len() {
                     let addr = framebuffer_phys + framebuffer_mapped;
                     assert_eq!(l3[l3_i], 0);
-                    //TODO: is PF_RAM okay?
-                    l3[l3_i] = addr | PF_ACCESS | PF_RAM | PF_TABLE | PF_PRESENT;
+                    let attribute =
+                        range_attribute(&memory_attribute_ranges, addr, addr + PAGE_SIZE as u64)
+                            .expect("framebuffer memory attribute boundary is not page-aligned");
+                    l3[l3_i] = addr | PF_ACCESS | page_flags(attribute) | PF_PAGE | PF_PRESENT;
                     framebuffer_mapped += PAGE_SIZE as u64;
                     l3_i += 1;
                 }

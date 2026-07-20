@@ -555,15 +555,24 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
         (memory.len() as u64, memory.as_mut_ptr() as u64)
     };
 
-    let page_phys = unsafe { paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64) }
-        .expect("Failed to set up paging");
-
     let max_env_size = 64 * KIBI;
     let mut env_size = max_env_size;
     let env_base = os.alloc_zeroed_page_aligned(env_size);
     if env_base.is_null() {
         panic!("Failed to allocate memory for stack");
     }
+
+    // Select the final video modes before taking the UEFI memory-map snapshot
+    // used to build the AArch64 page tables. SetMode may change the framebuffer
+    // address and its cacheability descriptors.
+    for (output_i, mode_opt) in mode_opts.iter_mut().enumerate() {
+        if let Some(mode) = mode_opt {
+            os.set_video_mode(output_i, mode);
+        }
+    }
+
+    let page_phys = unsafe { paging_create(os, kernel.as_ptr() as u64, kernel.len() as u64) }
+        .expect("Failed to set up paging");
 
     {
         let mut w = SliceWriter {
@@ -620,10 +629,7 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
         }
 
         for output_i in 0..os.video_outputs() {
-            if let Some(mut mode) = mode_opts[output_i] {
-                // Set mode to get updated values
-                os.set_video_mode(output_i, &mut mode);
-
+            if let Some(mode) = mode_opts[output_i] {
                 if output_i == 0 {
                     let virt = unsafe {
                         paging_framebuffer(

@@ -146,9 +146,10 @@ unsafe extern "C" fn kernel_entry(
         // Attribute 0 (0xFF) - normal memory, caches are enabled
         // Attribute 1 (0x44) - normal memory, caches are disabled. Atomics wouldn't work here if memory doesn't support exclusive access (most real hardware don't)
         // Attribute 2 (0x00) - nGnRnE device memory, caches are disabled, gathering, re-ordering, and early write acknowledgement aren't allowed.
+        // Attribute 3 (0xBB) - normal memory, write-through caches
         asm!(
             "msr mair_el1, {0}",
-            in(reg) 0x00000000000044FF as u64, // MAIR: Arrange for Device, Normal Non-Cache, Normal Write-Back access types
+            in(reg) 0x0000_0000_BB00_44FF as u64, // MAIR: Device, Normal Non-Cache, Normal Write-Back, Normal Write-Through
         );
 
         // Set TCR

@@ -3,7 +3,6 @@ use alloc::vec::Vec;
 use byteorder::BE;
 use byteorder::ByteOrder;
 use core::slice;
-use fdt::Fdt;
 use uefi::guid::DEVICE_TREE_GUID;
 #[cfg(target_arch = "aarch64")]
 use uefi::{
@@ -11,52 +10,11 @@ use uefi::{
     status::{Result, Status},
 };
 
-pub static mut DEV_MEM_AREA: Vec<(usize, usize)> = Vec::new();
-
-pub unsafe fn is_in_dev_mem_region(addr: usize) -> bool {
-    #[allow(static_mut_refs)]
-    unsafe {
-        if DEV_MEM_AREA.is_empty() {
-            return false;
-        }
-        for item in DEV_MEM_AREA.iter() {
-            if (addr >= item.0) && (addr < item.0 + item.1) {
-                return true;
-            }
-        }
-        return false;
-    }
-}
-
-unsafe fn get_dev_mem_region(fdt: &Fdt) {
-    unsafe {
-        let Some(soc) = fdt.find_node("/soc") else {
-            return;
-        };
-        let Some(ranges) = soc.ranges() else {
-            return;
-        };
-        let cell_sizes = soc.cell_sizes();
-        for chunk in ranges {
-            let child_bus_addr = chunk.child_bus_address;
-            let parent_bus_addr = chunk.parent_bus_address;
-            let addr_size = chunk.size;
-            println!(
-                "dev mem 0x{:08x} 0x{:08x} 0x{:08x}",
-                child_bus_addr, parent_bus_addr, addr_size
-            );
-            #[allow(static_mut_refs)]
-            DEV_MEM_AREA.push((parent_bus_addr as usize, addr_size as usize));
-        }
-    }
-}
-
 fn parse_dtb(os: &impl Os, address: *const u8) -> Option<(u64, u64)> {
     unsafe {
         if let Ok(fdt) = fdt::Fdt::from_ptr(address) {
             let mut rsdps_area = Vec::new();
             //println!("DTB model = {}", fdt.root().model());
-            get_dev_mem_region(&fdt);
             let length = fdt.total_size();
             let align = 8;
             rsdps_area.extend(core::slice::from_raw_parts(address, length));
