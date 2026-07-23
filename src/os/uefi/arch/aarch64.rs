@@ -158,7 +158,7 @@ unsafe extern "C" fn kernel_entry(
             "bfi {0}, {1}, #32, #3",
             "msr tcr_el1, {0}", // Write translation control register
             "isb", // Instruction sync barrier
-            in(reg) 0x1085100510u64, // TCR: (TxSZ, ASID_16, TG1_4K, Cache Attrs, SMP Attrs)
+            in(reg) 0x10b5103510u64, // TCR: (TxSZ, ASID_16, TG1_4K, Cache Attrs, SH0/SH1=Inner Shareable, SMP Attrs)
             out(reg) _,
         );
 
