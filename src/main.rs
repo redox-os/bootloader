@@ -187,7 +187,8 @@ fn select_mode(
         }
 
         // Read keypress
-        match os.get_key() {
+        // TODO: do not unwrap
+        match os.get_key().unwrap() {
             OsKey::Left => {
                 if let Some(mut mode_i) = modes.iter().position(|x| x.0.id == selected) {
                     if mode_i < rows {
@@ -287,7 +288,8 @@ fn redoxfs<O: Os>(os: &O) -> (redoxfs::FileSystem<O::D>, Option<&'static [u8]>) 
             let mut password = String::new();
 
             loop {
-                match os.get_key() {
+                // TODO: do not unwrap
+                match os.get_key().unwrap() {
                     OsKey::Backspace | OsKey::Delete => {
                         if !password.is_empty() {
                             print!("\x08 \x08");
