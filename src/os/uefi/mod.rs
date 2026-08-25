@@ -310,10 +310,12 @@ impl Os for OsEfi {
             ScanCode: 0,
             UnicodeChar: 0,
         };
-        status_to_result((self.st.ConsoleIn.ReadKeyStroke)(
-            self.st.ConsoleIn,
-            &mut key,
-        ))
+        maybe_retry(|| {
+            status_to_result((self.st.ConsoleIn.ReadKeyStroke)(
+                self.st.ConsoleIn,
+                &mut key,
+            ))
+        })
         .unwrap();
 
         match key.ScanCode {
@@ -366,6 +368,21 @@ fn status_to_result(status: Status) -> Result<usize> {
         Status(ok) if status.is_success() => Ok(ok),
         err => Err(err),
     }
+}
+
+fn maybe_retry<T, F>(mut func: F) -> Result<T>
+where
+    F: FnMut() -> Result<T>,
+{
+    let mut retry = 0;
+    while retry < 16 {
+        match func() {
+            Ok(ok) => return Ok(ok),
+            Err(Status::NOT_READY) => retry += 1,
+            err => return err,
+        }
+    }
+    Err(Status::NOT_READY)
 }
 
 fn set_max_mode(output: &uefi::text::TextOutput) -> Result<()> {
