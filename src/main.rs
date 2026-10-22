@@ -58,6 +58,21 @@ pub fn area_add(area: OsMemoryEntry) {
     }
 }
 
+// Wipe the table. The kernel walks every slot and treats `Null` as empty.
+pub fn areas_clear() {
+    #[allow(static_mut_refs)]
+    unsafe {
+        AREAS_LEN = 0;
+        for area in &mut AREAS[..] {
+            *area = OsMemoryEntry {
+                base: 0,
+                size: 0,
+                kind: OsMemoryKind::Null,
+            };
+        }
+    }
+}
+
 pub static mut KERNEL_64BIT: bool = false;
 
 pub static mut LIVE_OPT: Option<(u64, &'static [u8])> = None;
