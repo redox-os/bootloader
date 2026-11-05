@@ -522,12 +522,29 @@ fn main(os: &impl Os) -> (usize, u64, KernelArgs) {
 
         let mut i = 0;
         for chunk in live.chunks_mut(MIBI) {
-            print!("\rlive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
-            i += unsafe {
-                fs.disk
-                    .read_at(fs.block + i / redoxfs::BLOCK_SIZE, chunk)
-                    .expect("Failed to read live disk") as u64
-            };
+            let mut failed = true;
+            let mut num_attempts = 0;
+
+            while failed {
+                print!("\rlive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
+                i += unsafe {
+                    let increment = fs
+                        .disk
+                        .read_at(fs.block + i / redoxfs::BLOCK_SIZE, chunk)
+                        .map(|e| {
+                            failed = false;
+                            e
+                        })
+                        .unwrap_or_else(|e| {
+                            if num_attempts > 25 {
+                                panic!("Failed to read load live image due to {:?}", e);
+                            }
+                            0
+                        }) as u64;
+                    num_attempts += 1;
+                    increment
+                };
+            }
         }
         println!("\rlive: {}/{} MiB", i / MIBI as u64, size / MIBI as u64);
 
