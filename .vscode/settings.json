@@ -1,0 +1,7 @@
+{
+    // Uncomment this line and set rust-analyzer.cargo.target to your target to get accurate completions
+    // "rust-analyzer.cargo.target": "riscv64gc-unknown-uefi",
+    "rust-analyzer.server.extraEnv": {
+        "RUST_TARGET_PATH": "targets",
+    }
+}
